@@ -1,12 +1,10 @@
-from Licel import licel_tcpip as TCP
+from Licel import TCP_util
 from types import MappingProxyType
 import time
 import queue
+import numpy
 
 
-### QUESTION EH : 
-# in def setMaxBins(self, numMaxBins : int) -> str:  what is the permissable maxbin ??? 
-# 
 
 # Datasets
 DATASETSTYPE =MappingProxyType( { 
@@ -44,8 +42,9 @@ INPUTRANGE = MappingProxyType({ '-500mV': 0, '-100mV': 1, '-20mV' : 2 })
 # default TRHardwareinfo will be returned for transient produced before 2009 
 
 
-TRHardwareInfo_default = { 'ADC Bits' : 12, 'PC Bits' : 4, 'FIFOLength': 16384, 'binWidth' : 7.5,
-                'ID' :0, 'HWCAP' : 0, 'binShift': 3.0, 'raw':0}
+TRHardwareInfo_default = { 'ADC Bits' : 12, 'PC Bits' : 4, 'FIFOLength': 16384,
+                           'binWidth' : 7.5,'ID' :0, 'HWCAP' : 0, 'binShift': 3.0,
+                           'raw':0}
 
 #Threshold Modes 
 THRESHOLD_LOW = 0
@@ -69,51 +68,25 @@ FREQ_DIVIDER         = 0x40
 BLOCKTRIGGER = {"BLOCK A", "BLOCK B", "BLOCK C", "BLOCK D"}
 
 
-class licelTrTCP(TCP.licelTCP):
-    TRHardwareInfo = {
-    'ADC Bits' : 12,
-    'PC Bits' : 4,
-    'FIFOLength': 16384,
-    'binWidth' : 7.5,
-    'ID' :0,
-    'HWCAP' : 0,
-    'binShift': 3.0,
-    'raw':0
-    }
 
+class licelTrTCP(TCP_util.util):
 
-    def __init__(self, ip : str, port : int) -> None:
-        super().__init__(ip, port)
-        self.state = { "memory" : MEMORY['MEM_A'] , "recording": False , "acquisitionState": False    }
-        
-    def getID(self) -> str:
-        ''' Get the identification string from the controller '''
-        self.writeCommand("*IDN?")
-        return self.readResponse() 
-    
-    def getCapabilities(self) -> str:
-        '''
-        Get the available subcomponents of the controller like:
-        TR  - for controlling transient recorder \r\n
-        APD - for APD remote control \r\n
-        PMT - for PMT remote control \r\n
-        TIMER - for the trigger timing controller \r\n
-        CLOUD - for transient recorder controller cloud mode \r\n
-        BORE  - Boresight alignment system \r\n
-        '''
-        self.writeCommand("CAP?")
-        return self.readResponse() 
-    
-    def getMilliSecs(self) -> str:
-        ''' Requests the millisecond timer value of the controller '''
-        self.writeCommand("MILLISEC?")
-        return self.readResponse() 
+    Tr_number = " "
+
+    def __init__(self, sock, pushSock, killSock, sockF ) -> None:
+#        self.Tr_number = TR_num
+        self.state = { "memory" : MEMORY['MEM_A'] ,
+                       "recording": False , "acquisitionState": False}
+        self.commandSocket  = sock
+        self.PushSocket     = pushSock 
+        self.sockFile       = sockF
+        self.killsock       = killSock
     
     def getStatus(self) -> list [bool,bool,str,int]:
         ''' Return the shot number for each memory, there is one clearing cycle at the start.'''
         acquisitionState =False
         recording = False
-        memory = " "
+        memory = "MEM_A "
         self.writeCommand("STAT?")
         resp= self.readResponse()
         assert resp.find("Shots") >=0, "\r\nLicel_TCPIP_GetStatus - Error 5765 : " + resp
@@ -121,12 +94,12 @@ class licelTrTCP(TCP.licelTCP):
             acquisitionState = True    
             recording = True
         if resp.find("MemB") != -1:
-            memory = MEMORY["MEM_B"]
+            memory = "MEM_B"
         shots = resp.split(" ")[1]
         return acquisitionState, recording, memory,int(shots)
     
     def setSlaveMode(self) -> str: 
-        ''' Requests the millisecond timer value of the controller '''
+        ''' Set slave mode. end push mode '''
         self.writeCommand("SLAVE")
         resp = self.readResponse() 
         assert resp == "SLAVE executed\n", "\r\nLicel_TCPIP_SetSlaveMode - Error 5085 :" + str(resp.encode())
@@ -221,6 +194,7 @@ class licelTrTCP(TCP.licelTCP):
         assert resp == "SETMAXBINS executed\n", "\r\nLicel_TCPIP_SetMaxBins - Error 5110 : " + resp
         return resp
     
+
     def setMaxShots(self, maxShots : int) ->str:
         '''
         Set the maxmimum  shotnumber of the TR this can be an arbitrary number 
@@ -246,9 +220,9 @@ class licelTrTCP(TCP.licelTCP):
 
     def setThresholdMode(self, thresholdMode : str) -> str:
         '''
-        setThresholdMode sets the scale of the discriminator level \r\n
-        In the low threshold mode the disciminator level 63 
-        corresponds to -25mV while in the high threshold mode it corresponds to -100mV.
+        Sets the damping state to either on or off.
+        If a value of 1 is sent then damping is turned on. If a value
+        of 0 is sent, the damping is turned off
         '''
         if (not ((thresholdMode != 'ON') ^ (thresholdMode != 'OFF'))):
             raise ValueError ('setThresholdMode argument must be either "ON" or "OFF" \r\n passed argument is :'+thresholdMode)
@@ -259,7 +233,7 @@ class licelTrTCP(TCP.licelTCP):
         resp = self.readResponse()
         assert resp.find("Damping") >=0, "\r\nLicel_TCPIP_SetThresholdMode - Error 5098 : " + resp
         return resp
-
+    
     def setInputRange(self, Range : str ) -> str:
         '''
         Change the input voltage range. \r\n
@@ -295,7 +269,7 @@ class licelTrTCP(TCP.licelTCP):
         '''
         exponent = 0
         if (freqDivider > 128 or freqDivider < 1):
-            raise ValueError ('freqDivider argument must be in Range of 1 ... 128 \r\n passed argument is :'+ freqDivider)
+            raise ValueError ('freqDivider argument must be in Range of 1 ... 128 \r\n passed argument is :'+ str(freqDivider))
         while(freqDivider > 1):
             freqDivider = freqDivider /2
             exponent +=1
@@ -304,36 +278,75 @@ class licelTrTCP(TCP.licelTCP):
         assert int (resp.split(" ")[1]) == exponent, "\r\nLicel_TCPIP_SetFreqDivider - Error 5102 :" + resp
         return resp
     
-    def selectTR(self, numTR : int) -> str: 
-        if ( not isinstance(numTR, int) ):
-            raise ValueError ('selectTR argument must be an integer \r\n passed argument is :'+ type(numTR))
-        self.writeCommand("SELECT " +str(numTR))
-        resp = self.readResponse()
-        assert resp.find("executed") >=0, "\r\nLicel_TCPIP_SelectTR - Error 5083 : " + resp
-        return resp
-
     def TRtype(self) -> dict:
         '''
         Get transient recorder hardware information for the selected transient 
         recorder. Old TR produced before Oct. 2009 will not support this command 
         If this command is not supported default values  for a TR20-160 are filled in
+
+        :returns: hardware info
+        :rtype: 
         '''
+        tempTRHardwareInfo = {}
         self.writeCommand("TRTYPE?")
         resp = self.readResponse()
-        print(resp)
         if resp.find("TRTYPE ADC Bits") == -1:
             return TRHardwareInfo_default
          
         parsedResp = resp.split(" ")
-        self.TRHardwareInfo["ADC Bits"] = int(parsedResp[3])
-        self.TRHardwareInfo["PC Bits"] = int(parsedResp[6])
-        self.TRHardwareInfo["FIFOLength"]= int(parsedResp[8])
-        self.TRHardwareInfo["binWidth"] = float(parsedResp[10])
-        self.TRHardwareInfo["ID"] = parsedResp[12]
-        self.TRHardwareInfo["HWCAP"] = parsedResp[14]
-        self.TRHardwareInfo["binShift"] = float(parsedResp[16])
+        tempTRHardwareInfo["ADC Bits"] = int(parsedResp[3])
+        tempTRHardwareInfo["PC Bits"] = int(parsedResp[6])
+        tempTRHardwareInfo["FIFOLength"]= int(parsedResp[8])
+        tempTRHardwareInfo["binWidth"] = float(parsedResp[10])
+        tempTRHardwareInfo["ID"] = parsedResp[12]
+        tempTRHardwareInfo["HWCAP"] = parsedResp[14]
+        tempTRHardwareInfo["binShift"] = float(parsedResp[16])
         #self.TRHardwareInfo["raw"]= parsedResp[18]
-        return self.TRHardwareInfo
+        return tempTRHardwareInfo
+    
+    def selectTR(self, numTR : int) -> str: 
+        """ 
+        Select the transient recorder to communicate with 
+
+        :param numTr: transient recorder address. 0 .. 15
+        :type param: int 
+        """
+        if ( not isinstance(numTR, int) ):
+            raise ValueError ('selectTR argument must be an integer \r\n passed argument is :'+ type(numTR))
+        self.writeCommand("SELECT " +str(numTR))
+        resp = self.readResponse()
+        return resp
+    
+    def configureHardware (self, Config) :
+        """
+        Configure the active transient recorders hardware as specified in config. 
+
+        :param Config: holds the acquisition configuration information
+        :type Config: Licel.licel_acq.Config()
+        """
+        for trConfig in Config.TrConfigs:
+            transientIsActive = False
+            for key in  trConfig.analogueEnabled:
+                if (trConfig.analogueEnabled[key] == True  
+                    or trConfig.pcEnabled[key]    == True) :
+                        transientIsActive = True
+            if transientIsActive == True :
+                print(self.selectTR(trConfig.nTransientRecorder))
+                print(self.setSlaveMode())
+                print(self.setDiscriminatorLevel(trConfig.discriminator))
+                print(self.disablePretrigger() if trConfig.pretrigger == 0 else self.enablePretrigger())
+                if trConfig.threshold != 0 :
+                    print(self.setThresholdMode("ON"))
+                if trConfig.threshold == 0 :
+                    print(self.setThresholdMode("OFF"))
+                if trConfig.freqDivider != 0 :
+                    print(self.setFreqDivider(trConfig.freqDivider))
+                if trConfig.shotLimit != 0 :
+                    print(self.setMaxShots(trConfig.shotLimit))
+                nRange_str = "-"+ str(trConfig.nRange) +"mV"
+                print(self.setInputRange(nRange_str))
+        self.selectTR(-1)
+        return 
     
     def continueAcquisition(self) -> str: 
         '''
@@ -395,7 +408,7 @@ class licelTrTCP(TCP.licelTCP):
         resp = self.readResponse()
         assert resp.find("MSHOTS") >=0, "\r\nLicel_TCPIP_GetMultipleShotsAB - Error 5106 : " + resp
         return resp
-    ##################################################################################################
+
     def getMultipleShots(self) -> str: 
         '''
         Return the shotnumber for each memory, there is one clearing cycle at the start.
@@ -444,13 +457,14 @@ class licelTrTCP(TCP.licelTCP):
         assert resp.find("MSTOP executed") >=0, "\r\nLicel_TCPIP_MultipleStopAcquisition - Error 5082 : " + resp
         return resp
     
-    def multipleWaitForReady(self) -> str: 
+    def multipleWaitForReady(self, miliSec) -> str: 
         '''
         Wait until all devices returned from the armed state.
         '''
-        self.writeCommand("MWAIT")
+        command = "MWAIT " + str(miliSec) 
+        self.writeCommand(command)
         resp = self.readResponse()
-        assert resp.find("MWAIT executed") >=0, "\r\nLicel_TCPIP_MultipleWaitForReady - Error 5083 : " + resp
+        #assert resp.find("MWAIT executed") >=0, "\r\nLicel_TCPIP_MultipleWaitForReady - Error 5083 : " + resp
         return resp
     
     def selectMultipleTR(self, devicelist: list[int]) -> str:
@@ -462,7 +476,8 @@ class licelTrTCP(TCP.licelTCP):
         '''
         command = "SELECT "
         for item in devicelist:
-            command += (str(item) + " ")
+            command += (str(item) + ",")
+        command = command[:len(command)-1]
         self.writeCommand(command)
         resp = self.readResponse()
         assert resp.find("executed") >=0, "\r\nLicel_TCPIP_SelectMultipleDevice - Error 5081 : " + resp
@@ -483,12 +498,16 @@ class licelTrTCP(TCP.licelTCP):
     
     def setPushMode(self, shots: int, dataType:str, numberToRead: int, memory: str ) ->  str:
         if (not (memory in MEMORY.keys())):
-            raise ValueError ('setPushMode memory must be :'+ str(MEMORY.keys())+'\r\n passed argument is :'+ memory)
+            raise ValueError ('setPushMode memory must be :'+
+                               str(MEMORY.keys())+'\r\n passed argument is :'+ memory)
         if (not (dataType in PUSHMODETYPE.keys())):
-            raise ValueError ('setPushMode dataType must be :' + str(PUSHMODETYPE.keys())+'\r\n passed argument is :'+ dataType)
+            raise ValueError ('setPushMode dataType must be :'+
+                              str(PUSHMODETYPE.keys())+'\r\n passed argument is :'+
+                                dataType)
         
-        command = "PUSH " + str(shots) + " " + str(numberToRead) +" "+ PUSHMODETYPE[dataType] +" "+ MEMORY[memory]
-        self.openPushConnection()
+        command =("PUSH " + str(shots) + " " + str(numberToRead) +
+                  " "+ PUSHMODETYPE[dataType] +" "+ MEMORY[memory])
+        #self.openPushConnection()
         self.writeCommand(command)
         resp = self.readResponse()
         assert resp.find("PUSH executed") >=0, "\r\nLicel_TCPIP_SetPushMode - Error 5096 : " + resp
@@ -503,7 +522,7 @@ class licelTrTCP(TCP.licelTCP):
     def checkDelimiter(self, data) -> list[int]:
         '''
         return a list holding the positions of "\\xff\\xff" delimiter  
-        last element of the returned list is -1 indecating that the delimiter is not found.
+        last element of the returned list is -1 indicating that the delimiter is not found.
         '''
         temp= 0
         delimiterPos = []
@@ -514,10 +533,14 @@ class licelTrTCP(TCP.licelTCP):
                 return delimiterPos
             temp += 2
         return 
-    
+
     def MPushStart(self, shots: int , TRList: list[int], dataType: list[str], 
                    numberToRead: list[int], Memories: list[str], numDataSets: int ) -> str: 
-        
+        '''
+        starts MPUSH acquisition, this method is deprecated. 
+        it is recommended to start MPUSH from a configuration file, 
+        using the licelTCP.MPushStartFromConfig() method  
+        '''
         assert len(TRList) == len(numberToRead) == len(Memories) == len(dataType)
         command = "MPUSH " + str(shots)
         for i in range(0 , numDataSets):
@@ -531,8 +554,19 @@ class licelTrTCP(TCP.licelTCP):
         resp = self.readResponse()
         assert resp.find("MPUSH executed") >=0, "\r\nLicel_TCPIP_Licel_TCPIP_MPushStart - Error 5111 : " + resp
         return resp
-    
+        
     def waitForReady(self,delay: int) -> str:
+        """
+        Waits for return of the device from the armed state. If the waiting time
+        is longer than the time specified by delay than the device remains armed
+        and will be return to the idle state with next reading of binary data
+
+        :param delay: delay in ms
+        :type delay: int 
+
+        :returns: if timeout occurs ``timeout`` else ''Device returned from armed state''
+        :rtype: str
+        """
         acquisitionState =False
         recording = False
         memory = " "
@@ -540,5 +574,151 @@ class licelTrTCP(TCP.licelTCP):
         while (time.time()*1000) < start + delay:
             acquisitionState, recording, memory,shots =self.getStatus()
             if not acquisitionState :
-                return 
+                return "Device returned from armed state \r\n"
         return  " Timeout"
+    
+
+    def getCombinedRawAnalogueData(self, TRType, dataParser, bins, shots, device, memory):
+        """
+        get the combined raw analogue data set. 
+
+        :param TRType: dict holding information about the transient recorder hardware
+        :type TRType: dict{'ADC Bits' :" " , 'PC Bits' : " ", 'FIFOLength': " ",
+                           'binWidth' :" " , 'ID' : " ", 'HWCAP' : " ", 'binShift': " "}
+
+        :param dataParser: Class holding method for processing and parsing raw data
+        :type dataParser: Licel.licel_data.DataParser
+
+        :param bins: number of bins to read. 
+        :type bins: int 
+
+        :param shots: number of acquired shots. 
+        :type shots: int 
+
+        :param device: transient recorder address 
+        :type device: int 
+
+        :param memory: memory to read. 
+        :type memory: str can be: 'MEM_A', 'MEM_B', 'MEM_C', 'MEM_D' 
+
+        :returns: combined analogue data set and the clipping information for each data point. 
+        :rtype: [Analogue data set: numpy.ndarray(dtype=uint32, ndim =1), 
+                 Clipping information: numpy.ndarray(dtype=uint32, ndim =1)]
+        """
+        if TRType['ADC Bits'] == 16 :
+            mem_low_buffer  = self.getDataSet(device, bins + 1, "LSW", memory)   
+            mem_high_buffer = self.getDataSet(device, bins + 1, "MSW", memory)
+            mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
+            mem_high  = numpy.frombuffer(mem_high_buffer,numpy.uint16)
+            mem_extra = numpy.zeros((bins))
+            if shots > 4096 :
+                mem_extra_buffer = self.getDataSet(device, bins + 1,"PHM", memory)
+                mem_extra = numpy.frombuffer(mem_extra_buffer,numpy.uint16)
+            return  dataParser.combine_Analog_Datasets_16bit(mem_low, mem_high, mem_extra)
+        else : 
+            mem_low_buffer  = self.getDataSet(device, bins + 1, "LSW", memory)   
+            mem_high_buffer = self.getDataSet(device, bins + 1, "MSW", memory)
+            mem_low  = numpy.frombuffer(mem_low_buffer,numpy.uint16)
+            mem_high = numpy.frombuffer(mem_high_buffer,numpy.uint16)
+            return dataParser.combine_Analog_Datasets(mem_low, mem_high)
+
+    def getCombinedRawAnalogueSquaredData(self, dataParser, binsSqd, device, memory): 
+        """
+        get the combined raw analogue squared data 
+
+        :param dataParser: Class holding method for processing and parsing raw data
+        :type dataParser: Licel.licel_data.DataParser
+
+        :param binsSqd: number of bins to read. 
+        :type bins: int 
+
+        :param device: transient recorder address 
+        :type device: int 
+
+        :param memory: memory to read. 
+        :type memory: str can be: 'MEM_A', 'MEM_B', 'MEM_C', 'MEM_D' 
+
+        :returns: the combined raw analogue squared data
+        :rtype: numpy.ndarray(dtype=uint64, ndim =1)
+        """
+        mem_low_buffer   = self.getDataSet(device, binsSqd + 1, "A2L", memory) 
+        mem_high_buffer  = self.getDataSet(device, binsSqd + 1, "A2M", memory)
+        mem_extra_buffer = self.getDataSet(device, binsSqd + 1, "A2H", memory) 
+        mem_low   = numpy.frombuffer(mem_low_buffer, numpy.uint16)
+        mem_high  = numpy.frombuffer(mem_high_buffer, numpy.uint16)
+        mem_extra = numpy.frombuffer(mem_extra_buffer, numpy.uint16)
+
+        return dataParser.combineAnalogSquaredData(mem_low, mem_high, mem_extra)
+
+    def getRawPhotonCountingData(self, TRType, dataParser, bins, shots, device, memory):
+
+        """
+        get the raw photon data set. 
+
+        :param TRType: dict holding information about the transient recorder hardware
+        :type TRType: dict{'ADC Bits' :" " , 'PC Bits' : " ", 'FIFOLength': " ",
+                           'binWidth' :" " , 'ID' : " ", 'HWCAP' : " ", 'binShift': " "}
+
+        :param dataParser: Class holding method for processing and parsing raw data
+        :type dataParser: Licel.licel_data.DataParser
+
+        :param bins: number of bins to read. 
+        :type bins: int 
+
+        :param shots: number of acquired shots. 
+        :type shots: int 
+
+        :param device: transient recorder address 
+        :type device: int 
+
+        :param memory: memory to read. 
+        :type memory: str can be: 'MEM_A', 'MEM_B', 'MEM_C', 'MEM_D' 
+
+        :returns: photon data set. 
+        :rtype: numpy.ndarray(dtype=uint32, ndim =1)
+        """      
+        if((TRType['PC Bits'] == 4  and shots > 4096) or 
+        (TRType['PC Bits'] == 6 and shots > 1024) or 
+        (TRType['PC Bits'] == 8 and shots > 256)) :
+            mem_low_buffer   = self.getDataSet(device, bins + 1, "PC" , memory) 
+            mem_extra_buffer = self.getDataSet(device, bins + 1 , "PHM",memory) 
+            mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
+            mem_extra = numpy.frombuffer(mem_extra_buffer,numpy.uint16)
+            return dataParser.convert_Photoncounting_Fullword(mem_low, mem_extra)
+
+        else: 
+            PUREPHOTON = 0
+            mem_low_buffer   = self.getDataSet(device, bins + 1, "PC" , memory) 
+            mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
+            return dataParser.convert_Photoncounting(mem_low, PUREPHOTON)
+
+    def getRawPhotonCountingSquaredData(self, dataParser, binsSqd, device, memory):
+        """
+        get the photon counting raw  squared data 
+
+        :param dataParser: Class holding method for processing and parsing raw data
+        :type dataParser: Licel.licel_data.DataParser
+
+        :param binsSqd: number of bins to read. 
+        :type bins: int 
+
+        :param device: transient recorder address 
+        :type device: int 
+
+        :param memory: memory to read. 
+        :type memory: str can be: 'MEM_A', 'MEM_B', 'MEM_C', 'MEM_D' 
+
+        :returns: the combined  photon counting raw squared data
+        :rtype: numpy.ndarray(dtype=uint64, ndim =1)
+        """
+        mem_low_buffer   = self.getDataSet(device, binsSqd + 1, "P2L", memory) 
+        mem_high_buffer  = self.getDataSet(device, binsSqd + 1, "P2M", memory)
+        mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
+        mem_high  = numpy.frombuffer(mem_high_buffer,numpy.uint16)
+
+        return dataParser.combine_Photon_Squared_Data(mem_low, mem_high)
+
+    
+
+
+

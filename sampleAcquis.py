@@ -1,135 +1,177 @@
 #! python3.10
+'''
+Copyright ©: Licel GmbH
 
-from Licel import licel_tr_tcpip, licel_data
+python sampleAcquis.py --ip <ip> --port <port> --device <Tr address> --memory <memory>
+                    --bins <number of bins to read> --sqd_bins <number of sqd bins to read>
+                    --range 100mV --squared|no-squared
+'''
+from Licel import  licel_data,licel_tcpip
 import time 
 import numpy
+import argparse
 
-TR = 0 
-DOSQUARE = True
 
-IP = "127.0.0.1"
-PORT = 2055 
+def saveDataToFile(filename, TRType, inputRange, shots, dmVData, datatype):
+    header =( "ADC bits : {:d} \r\n Input Range : {:s} \r\n total shots : {:d}\r\n {:s}"
+             .format(TRType['ADC Bits'], inputRange, shots, datatype))
+    numpy.savetxt(filename, dmVData, header=header, newline='\r\n')
 
-acquisitionState =False
-recording = False
-memory = " "
-
+def commandLineInterface():
+    argparser = argparse.ArgumentParser(description='sample acquisition example')
+    argparser.add_argument('--ip', type=str, default = "10.49.234.234",
+                            help='ethernet controller ip address')
+    argparser.add_argument('--port', type=int, default=2055,
+                            help='ethernet controller command port')
+    argparser.add_argument('--device', type=int, default=0,
+                            help='transient recorder address')
+    argparser.add_argument('--memory', type=str,  default="MEM_A",
+                            help='memory to acquire data from')
+    argparser.add_argument('--squared', type=bool, default=False,
+                            action=argparse.BooleanOptionalAction,
+                            help='acquire squared data')
+    argparser.add_argument('--bins', type=int, default=16000,
+                            help='number of bins to read')
+    argparser.add_argument('--sqd_bins', type=int, default=4000,
+                            help='number of squared bins to read')
+    argparser.add_argument('--range', type=str, default = "100mV",
+                            help= ('transient recorder input range. possible values:'
+                                   '20mV, 100mV, 500mV'))
+    args = argparser.parse_args()
+    return args 
 
 def main():
-    Rack = licel_tr_tcpip.licelTrTCP (IP, PORT)
-    dataParser = licel_data.Data()
 
-    Rack.openConnection()
-    print(Rack.getID())
-    print(Rack.selectTR(TR))
+    #initialize acquisition parameters using parameters passed from command line interface
+    myArguments = commandLineInterface()    
+    ip = myArguments.ip
+    port = myArguments.port
+    device = myArguments.device 
+    memory = myArguments.memory
+    DOSQUARE = myArguments.squared
+    bins = myArguments.bins
+    binsSqd = myArguments.sqd_bins
+    inputRange = "-"+myArguments.range
 
-    TRType = Rack.TRtype()
+    ethernetController = licel_tcpip.licelTCP (ip, port)
+    dataParser = licel_data.DataParser()
+
+    ethernetController.openConnection()
+    print(ethernetController.getID())
+    print(ethernetController.getCapabilities())
+    MyTR = ethernetController.listInstalledTr()
+    print("number of detected transient recorders:", ethernetController.MaxTrNumber,"\r\n")
+    
+    ethernetController.selectTR(0)
+    TRType = MyTR.TRtype()
     print("TR Info : ", TRType, " \r\n")
-    print(Rack.setInputRange('-100mV'))
-    print(Rack.setThresholdMode("ON"))
-    print(Rack.setDiscriminatorLevel(4))
-    print(Rack.setMaxShots(4094))
 
-    print(Rack.startAcquisition())
-    time.sleep(5) 
-    print(Rack.stopAcquisition())
-    print(Rack.waitForReady(2000))
+    # Configure acquisition 
+    print(MyTR.setInputRange(inputRange))
+    print(MyTR.setThresholdMode("ON"))
+    print(MyTR.setDiscriminatorLevel(8))
+    print(MyTR.setMaxShots(4094))
 
-    acquisitionState, recording, memory,shots =Rack.getStatus()
+    # start the acquisition 
+    print(MyTR.startAcquisition())
+    time.sleep(1) 
+    print(MyTR.stopAcquisition()) # stop the Transient recorder 
+    print(MyTR.waitForReady(400)) # wait until the TR returns to the idle state
+
+    acquisitionState, recording, mem,shots =MyTR.getStatus()
     print("Shots Acquired : ", shots)
 
-    iNumber = 13000  #read a 13000 bin long trace
-    iNumberSqd = 4000 # 4000 is the maximum bin length for squared data
+    # Get analogue raw data
+    combinedAnalogueRawData, iClipping = MyTR.getCombinedRawAnalogueData(TRType,
+                                                                    dataParser,
+                                                                    bins,
+                                                                    shots,
+                                                                    device,
+                                                                    memory)
 
-    # Get analogue data
-    if TRType['ADC Bits'] == 16 :
-        mem_low_buffer  = Rack.getDataSet(TR, iNumber + 1, "LSW", "MEM_A")   
-        mem_high_buffer = Rack.getDataSet(TR, iNumber + 1, "MSW", "MEM_A")
-        mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
-        mem_high  = numpy.frombuffer(mem_high_buffer,numpy.uint16)
-        mem_extra = numpy.zeros((iNumber))
-        if shots > 4096 :
-            mem_extra_buffer = Rack.getDataSet(TR, iNumber + 1,"PHM", "MEM_A")
-            mem_extra = numpy.frombuffer(mem_extra_buffer,numpy.uint16)
-        analogueRawData,iClipping = dataParser.combine_Analog_Datasets_16bit(mem_low, mem_high, mem_extra)
-    else : 
-        mem_low_buffer  = Rack.getDataSet(TR, iNumber + 1, "LSW", "MEM_A")   
-        mem_high_buffer = Rack.getDataSet(TR, iNumber + 1, "MSW", "MEM_A")
-        mem_low  = numpy.frombuffer(mem_low_buffer,numpy.uint16)
-        mem_high = numpy.frombuffer(mem_high_buffer,numpy.uint16)
-        analogueRawData,iClipping = dataParser.combine_Analog_Datasets(mem_low, mem_high)
+    dNormalized=dataParser.normalizeData(combinedAnalogueRawData, bins, shots)
+    dmVData = dataParser.scaleAnalogData(dNormalized,inputRange, TRType)
 
-
-    dNormalized=dataParser.normalizeData(analogueRawData, iNumber, shots)
-    dmVData = dataParser.scaleAnalogData(dNormalized,'-100mV', TRType)
-    dataParser.plot(dmVData,"dmVData_Analogue", "bins", "mV")
-
-    clipped_bin_count = numpy.count_nonzero(iClipping)
-    if clipped_bin_count :
-        clipping_detected = True
-        print("clippped_bin_count : ",clipped_bin_count)
-    
-    # Get analogue squared data
+    saveDataToFile("analogueData.txt",
+                    TRType,
+                    inputRange,
+                    shots,
+                    dmVData,
+                    "analogue data in mV")
+    print ("*** Saved dmVData ***")
+  
+    # Get analogue raw squared data
     if DOSQUARE :
         
-        mem_low_buffer   = Rack.getDataSet(TR, iNumberSqd + 1, "A2L", "MEM_A") 
-        mem_high_buffer  = Rack.getDataSet(TR, iNumberSqd + 1, "A2M", "MEM_A")
-        mem_extra_buffer = Rack.getDataSet(TR, iNumberSqd + 1, "A2H", "MEM_A") 
-        mem_low   = numpy.frombuffer(mem_low_buffer, numpy.uint16)
-        mem_high  = numpy.frombuffer(mem_high_buffer, numpy.uint16)
-        mem_extra = numpy.frombuffer(mem_extra_buffer, numpy.uint16)
-
-        analogueSqdRawData = dataParser.combineAnalogSquaredData(mem_low, mem_high, mem_extra)
-
-        sqd_bin = dataParser.getSquareRootBinary(analogueRawData, analogueSqdRawData, iNumberSqd, shots)
+        analogueSqdRawData = MyTR.getCombinedRawAnalogueSquaredData(dataParser,
+                                                                    binsSqd,
+                                                                    device,
+                                                                    memory) 
+        
+        sqd_bin = dataParser.getSquareRootBinary(combinedAnalogueRawData,
+                                                 analogueSqdRawData,
+                                                 binsSqd,
+                                                 shots)
+        
         SampleStandardDev = dataParser.normalizeSquaredData(sqd_bin, shots)
-        dataParser.plot(SampleStandardDev, "dSampleStandardDev_Analogue", "bins", "mV")
-
         meanErrorBinary = dataParser.meanError(SampleStandardDev, shots)
-        meanError_mV = dataParser.scaleAnalogData(meanErrorBinary, '-100mV', TRType)
-        dataParser.plot(meanError_mV, "meanError_mV_Analogue", "bins", "mV")
+        meanError_mV = dataParser.scaleAnalogData(meanErrorBinary, inputRange, TRType)
+
+        saveDataToFile("analogueSqdData.txt",
+                        TRType,
+                        inputRange,
+                        shots,
+                        meanError_mV,
+                        "analogue mean error in mV")
+        print ("*** Saved meanError_mV ***")
+
+
 
     # Get photon counting data 
-    if((TRType['PC Bits'] == 4  and shots > 4096) or 
-    (TRType['PC Bits'] == 6 and shots > 1024) or 
-    (TRType['PC Bits'] == 8 and shots > 256)) :
-        mem_low_buffer   = Rack.getDataSet(TR, iNumber + 1, "PC" , "MEM_A") 
-        mem_extra_buffer = Rack.getDataSet(TR, iNumber + 1 , "PHM", "MEM_A") 
-        mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
-        mem_extra = numpy.frombuffer(mem_extra_buffer,numpy.uint16)
-        photonCountRawData = dataParser.convert_Photoncounting_Fullword(mem_low, mem_extra)
+    photonCountRawData = MyTR.getRawPhotonCountingData(TRType,
+                                                       dataParser,
+                                                       bins,
+                                                       shots,
+                                                       device,
+                                                       memory)
+    
+    dNormalized_PhotonCount = dataParser.normalizeData(photonCountRawData,bins, shots)
+    dMHzData = dataParser.scale_PhotonCounting(dNormalized_PhotonCount, TRType['binWidth'])
 
-    else: 
-        PUREPHOTON = 0
-        mem_low_buffer   = Rack.getDataSet(TR, iNumber + 1, "PC" , "MEM_A") 
-        mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
-        photonCountRawData = dataParser.convert_Photoncounting(mem_low, PUREPHOTON)
-
-
-    dNormalized_PhotonCount = dataParser.normalizeData(photonCountRawData,iNumber, shots)
-
-    dMHzData = dataParser.scale_PhotonCounting(photonCountRawData, TRType['binWidth'])
-    dataParser.plot(dMHzData, "dMHzData", "bins", "MHZ")    
-
+    saveDataToFile("photon.txt",
+                    TRType,
+                    inputRange,
+                    shots,
+                    dMHzData,
+                    "Photon Counts Data (counts per bin)")
+    print ("*** Saved dMHz Data ***")
+    
     # Get photon counting squared data 
     if DOSQUARE :
-        mem_low_buffer   = Rack.getDataSet(TR, iNumberSqd + 1, "P2L", "MEM_A") 
-        mem_high_buffer  = Rack.getDataSet(TR, iNumberSqd + 1, "P2M", "MEM_A")
-        mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
-        mem_high  = numpy.frombuffer(mem_high_buffer,numpy.uint16)
 
-        squared_photon_data = dataParser.combine_Photon_Squared_Data(mem_low, mem_high)
-        dataParser.plot(squared_photon_data, "squared_photon_data", "bins", "MHZ")    
+        squared_photon_data = MyTR.getRawPhotonCountingSquaredData(dataParser,
+                                                                   binsSqd,
+                                                                   device,
+                                                                   memory)
 
-        sqd_bin = dataParser.getSquareRootBinary(photonCountRawData, squared_photon_data, iNumberSqd, shots)
+        sqd_bin = dataParser.getSquareRootBinary(photonCountRawData,
+                                                 squared_photon_data,
+                                                 binsSqd,
+                                                 shots)
 
         SampleStandardDev = dataParser.normalizeSquaredData(sqd_bin,shots)
-        dataParser.plot(SampleStandardDev, "SampleStandardDev_photon", "bins", "MHZ")    
 
         meanErrorBinary = dataParser.meanError(SampleStandardDev, shots)
-        dataParser.plot(meanErrorBinary, "meanErrorBinary_photon", "bins", "MHZ")    
 
-    Rack.shutdownConnection()
+        saveDataToFile("photonSQD.txt",
+                        TRType,
+                        inputRange,
+                        shots,
+                        meanErrorBinary,
+                        "Photon Counts mean Error Binary")
+        print ("*** Saved meanErrorBinary ***")
+
+    ethernetController.shutdownConnection()
 
 if __name__ == "__main__":
     main()
