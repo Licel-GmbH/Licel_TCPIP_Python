@@ -244,6 +244,8 @@ class Config():
         i = 0
         for section in sections:
             if section.find("TR") >= 0:
+                assert len(section) > 2, ("\n In .ini file, TR section must include transient recorder number. \
+                                         \n Valid name [TR#] where # is the transient recorder number")
                 tmpDataset = TrConfig()
                 tmpDataset.nTransientRecorder = int(section.removeprefix("TR"))
                 for key in self.parser[section]:
