@@ -570,7 +570,7 @@ class DataParser:
         min = now.minute
         sec = now.second
         millisec = now.microsecond/1000
-        filename ='{:s}{:02d}{:s}{:02d}{:02d}.{:02d}{:02d}{:02d}'.format(prefix,
+        filename ='{:s}{:02d}{:s}{:02d}{:02d}.{:02d}{:02d}{:03d}'.format(prefix,
                                                                year, month, day, 
                                                                hour, min,sec,
                                                                int(millisec))
