@@ -14,7 +14,7 @@ logFilePath = 'mpush_log.txt' # log file
 
 def commandLineInterface():
     argparser = argparse.ArgumentParser(description='Mpush example ')
-    argparser.add_argument('--ip', type=str, default = "127.0.0.1",
+    argparser.add_argument('--ip', type=str, default = "10.49.234.234",
                     help='ethernet controller ip address')
     argparser.add_argument('--port', type=int, default=2055,
                     help='ethernet controller command port')
