@@ -1,7 +1,8 @@
 '''
 Copyright ©: Licel GmbH
 
-python3 powermeter_example.py --ip <ip> --port <port>  --acq <num acquis> --channel <channel>
+python3 powermeter_example.py --ip <ip> --port <port>  --acq <num acquis>
+                              --channel <channel>  --internalTrigger
 '''
 
 from Licel import  licel_tcpip, powermeter
@@ -19,7 +20,9 @@ def commandLineInterface():
     argparser.add_argument('--channel', type=int,  default=0,
                             help=("Selects the ADC channel for the data acquisition." 
                             "channel can either be 0 for photodiode, 2 for powermeter."))
-
+    argparser.add_argument('--internalTrigger', type=bool, default=False,
+                           action=argparse.BooleanOptionalAction,
+                           help='activate the internal trigger')
     args = argparser.parse_args()
     return args
  
@@ -31,27 +34,52 @@ def main():
     port = myArguments.port
     ACQUISTION_CYCLES = myArguments.acq
     channel = myArguments.channel
+    SimTrig = myArguments.internalTrigger
 
-    ethernetController = licel_tcpip.licelTCP (ip, port)
+    ethernetController = licel_tcpip.EthernetController (ip, port)
     Powermeter = powermeter.powermeter(ethernetController)
 
     ethernetController.openConnection()
     ethernetController.openPushConnection()
 
-    ethernetController.getID()
-    print(ethernetController.getCapabilities())
+    print(ethernetController.getID())
+    capability = ethernetController.getCapabilities()
+    print(capability)
+    if capability.find('POW') == -1 :
+        raise RuntimeError("Missing capabilities POW")
+
     print(Powermeter.selectChannel(channel))
+    
+    print("*** get number number of triggers ***")
+    print(Powermeter.getNumberOfTrigger())
+    
+    if (SimTrig):
+        print("*** Start internal Trigger ***")
+        print(Powermeter.startInternalTrigger())
 
     print("*** Start acquiring pulse amplitude *** \r\n")
     print(Powermeter.Start())
     for i in range (0, ACQUISTION_CYCLES):
-        print(Powermeter.readPushLine())
+        timestamp, pulseAmplitude, trigger_num = Powermeter.getPowermeterPushData()
+        formattedData = ("Pulse amplitude = {}, "
+                         "controller timestamp {} ms, "
+                         "trigger number {} \r\n"
+                          .format(pulseAmplitude, timestamp, trigger_num))
+        print(formattedData)
     
     print("*** Stop acquiring pulse amplitude *** \r\n")
     print(Powermeter.Stop())
 
+
     print("*** Acquire single trace *** \r\n")
-    print(Powermeter.getTrace())
+    singleTraceData = Powermeter.getTrace()
+    print(singleTraceData)
+
+    if (SimTrig):
+        print("*** Stop internal Trigger ***")
+        print(Powermeter.stopInternalTrigger())
+
+
 
     ethernetController.shutdownPushConnection()
     ethernetController.shutdownConnection()

@@ -9,9 +9,9 @@ class  photomultiplier(TCP_util.util):
         self.commandSocket = ethernetController.commandSocket 
         self.sockFile      = ethernetController.sockFile
 
-    def setGain(self, device : int, voltage : int) -> str:
+    def setHV(self, device : int, voltage : int) -> str:
         """
-        set gain for the pmt 
+        set voltage for the pmt 
 
         :param device:  pmt device number
         :type device: int 
@@ -31,7 +31,7 @@ class  photomultiplier(TCP_util.util):
 
     def getHV(self, device : int) -> str:
         """
-        get gain for the pmt 
+        get Voltage of the pmt 
 
         :param device:  pmt device number
         :type device: int 
@@ -50,7 +50,7 @@ class  photomultiplier(TCP_util.util):
         """
         verifies if the pmt is correctly installed. \n
         1. Set the high voltages PMTs ``device`` to 0 \n
-        2. Request high voltage. When a PMT reply contains ≈ 356 V
+        2. Request high voltage. When a PMT reply contains around 356 V
         the corresponding cassette/PMT is not installed.
 
         :param device:  pmt device number
@@ -59,7 +59,7 @@ class  photomultiplier(TCP_util.util):
         :returns: True when pmt corresponding to ``device`` is installed.   
         :rtype: bool
         """
-        resp = self.setGain(device,0)
+        resp = self.setHV(device,0)
         voltage = self.getHV(device).split(" ")[1]
         if ((float (voltage) <360) and (float(voltage) >350)): 
             return False
@@ -74,7 +74,7 @@ class  photomultiplier(TCP_util.util):
         :rtype: dict{pmt number : Installed/Not installed}
         """
         pmtDict = {}
-        for i in range(0,7):
+        for i in range(0,16):
             if self.isPMTinstalled(i):
                 pmtDict[i] = "Installed"
             else : 

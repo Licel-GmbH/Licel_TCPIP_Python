@@ -2,33 +2,32 @@ from dataclasses import dataclass, field
 import configparser
 import os
     
-HEADEROFFSET = 3 # 3* 2 byte = 6byte represents delimiter xff xff + timestamp 
-NEXT_DELIMTER_OFFSET = 2 # 2 byte representing the next delimiter xff xff
+
 @dataclass()
 class MeasureInfo:
     ''' 
     this class holds global configuration Info. 
     '''
-    szLocation      : str   = field(default ="default") #:measurement site 
-    nAltitude       : int   = field(default ="default") #:altitude above sea level in meters
-    dLongitude      : float = field(default ="default") #:longitude in degrees
-    dLatitude       : float = field(default ="default") #:lattitude in degrees
-    Zenith          : float = field(default ="default") #:Zenith in in degrees 
-    Azimuth         : float = field(default ="default") #:Azimuth in in degrees 
+    szLocation      : str   = field(default =None) #:measurement site 
+    nAltitude       : int   = field(default =None) #:altitude above sea level in meters
+    dLongitude      : float = field(default =None) #:longitude in degrees
+    dLatitude       : float = field(default =None) #:lattitude in degrees
+    Zenith          : float = field(default =None) #:Zenith in in degrees 
+    Azimuth         : float = field(default =None) #:Azimuth in in degrees 
 
-    cFirstLetter    : str   = field(default ="default") #:first letter of the data file
-    szOutPath       : str   = field(default ="default") #:output directory for data 
-    nDataSetNumber  : int   = field(default ="default") #:number of datasets into a single file
+    cFirstLetter    : str   = field(default =None) #:first letter of the data file
+    szOutPath       : str   = field(default =None) #:output directory for data 
+    nDataSetNumber  : int   = field(default =None) #:number of datasets into a single file
     
-    nMaxShotsL0     : int   = field(default ="default")  #:max num of shots for Laser0 
-    nMaxShotsL1     : int   = field(default ="default")  #:max num of shots for Laser1 
-    nMaxShotsL2     : int   = field(default ="default")  #:max num of shots for Laser2 
-    nMaxShotsL3     : int   = field(default ="default")  #:max num of shots for Laser3
+    nMaxShotsL0     : int   = field(default =None)  #:max num of shots for Laser0 
+    nMaxShotsL1     : int   = field(default =None)  #:max num of shots for Laser1 
+    nMaxShotsL2     : int   = field(default =None)  #:max num of shots for Laser2 
+    nMaxShotsL3     : int   = field(default =None)  #:max num of shots for Laser3
     
-    repRateL0       : int   = field(default ="default") #:repetition rate of Laser0 
-    repRateL1       : int   = field(default ="default") #:repetition rate of Laser1 
-    repRateL2       : int   = field(default ="default") #:repetition rate of Laser2 
-    repRateL3       : int   = field(default ="default") #:repetition rate of Laser3 
+    repRateL0       : int   = field(default =None) #:repetition rate of Laser0 
+    repRateL1       : int   = field(default =None) #:repetition rate of Laser1 
+    repRateL2       : int   = field(default =None) #:repetition rate of Laser2 
+    repRateL3       : int   = field(default =None) #:repetition rate of Laser3 
 
     #: dictionary holding global information for laser0. 
     #: dict = {wavelength1 : polarization1, wavelength2: polarizaton2}
@@ -49,21 +48,21 @@ class MeasureInfo:
 @dataclass()
 class TrConfig: 
     #: transient recorder address 
-    nTransientRecorder:   int = field(default ="default") 
+    nTransientRecorder:   int = field(default =None) 
     #: analog input range 0 for 500mV, 1 for 100mV, 2 for 20mV                        
-    nRange            :   int = field(default ="default") 
+    nRange            :   int = field(default =None) 
     #: Discriminator level between 0 and 63              
-    discriminator     :   int   = field(default ="default") 
+    discriminator     :   int   = field(default =None) 
     #: shot limit for the Transient recorder, arbitrary number between 2 and 64K. 
-    shotLimit         :   int   = field(default =0)
+    shotLimit         :   int   = field(default =None)
     #: 1 for pretrigger enabled, 0 for pretrigger disabled 
-    pretrigger        :   int   = field(default =0) 
+    pretrigger        :   int   = field(default =None) 
     #: Set the frequency divider, it changes the sampling rate before the summation
     #: possible values are 0-7
-    freqDivider       :   int   = field(default =0)
+    freqDivider       :   int   = field(default =None)
     #: Sets the damping state to either on or off. 1 to turn on the Damping mode. 
     #: 0 to turn off the Damping mode.
-    threshold         :   int   = field(default =0)
+    threshold         :   int   = field(default =None)
 
     #: holds the laser polarization for the analogue memory 
     #: none, vertical, horizontal, right circular, left circular 0|1|2|3|4   
@@ -144,14 +143,6 @@ class Config():
     TrConfigs : [TrConfig] = [ ]
     #: holds the total number of datasets to be read, analogue and photon counting 
     numDataSets = 0 
-    #: holds the total number of raw datasets to be read, MSW LSW PC PHM   
-    __rawDataSets__ = 0  
-    #: holds the total number of bins to be read.
-    totalnumBins = 0 
-    #: Buffer size to recive MPUSH data
-    BufferSize = 0 
-    #: number of byte expected to be received for a complete data set      
-    exceptedByte = 0    
     #: parser object to parse the .ini configuration file 
     parser = configparser.ConfigParser()
 
@@ -243,9 +234,7 @@ class Config():
         sections = self.parser.sections()
         i = 0
         for section in sections:
-            if section.find("TR") >= 0:
-                assert len(section) > 2, ("\n In .ini file, TR section must include transient recorder number. \
-                                         \n Valid name [TR#] where # is the transient recorder number")
+            if (section.find("TR") >= 0 and len(section) > 2):
                 tmpDataset = TrConfig()
                 tmpDataset.nTransientRecorder = int(section.removeprefix("TR"))
                 for key in self.parser[section]:
@@ -277,59 +266,7 @@ class Config():
 
                 self.TrConfigs.append(tmpDataset)
                 del tmpDataset
-    
-    def setDatasetsCount(self, shots, TRHardwareInfos):
-        """ 
-        we parse the Configuration and calculate how many (raw)dataset 
-        and the total number of bins we need to acquire. The number of shots and transient
-        hardware information influences the number of raw data bytes we need to acquire. 
-        this function update the value of ``exceptedByte`` and ``BufferSize`` in ``Config``.
-
-        :param shots: number of shots the user wishes to acquire
-        :type shots : int
-
-        :param TRHardwareInfos: list contains hardware information for each detected 
-        transient recorder
-        :type TRHardwareInfos: dict{Tr_num : dict{'ADC Bits' : ' ', 'PC Bits' : ' ' ,
-        FIFOLength': ' ', binWidth' : ' ', 'ID' : ' ', 'HWCAP' : ' ', 'binShift': ' ',
-        'raw': ' '}}
-
-        :returns: None
-        """
-        for myTrConfig in self.TrConfigs: 
-            for key in myTrConfig.analogueEnabled : 
-                if myTrConfig.analogueEnabled[key] == True: 
-                    Trnum = myTrConfig.nTransientRecorder
-                    self.numDataSets += 1 #analogue data to be written to file. 
-                    if ((shots > 4096) and (TRHardwareInfos[Trnum]['ADC Bits'] == 16)): 
-                        #analogue data are formed from MSW LSW and PHM.  
-                        self.__rawDataSets__ += 3 
-                        self.totalnumBins += 3*myTrConfig.analogueBins[key]
-                    else:
-                        #analogue data are formed from MSW and LSW, 
-                        self.__rawDataSets__ += 2 
-                        self.totalnumBins += 2*myTrConfig.analogueBins[key]
-                    
-            for key in myTrConfig.pcEnabled: 
-                if myTrConfig.pcEnabled[key] == True: 
-                    Trnum = myTrConfig.nTransientRecorder
-                    self.numDataSets += 1 #PC data to be written to file. 
-                    if ((shots > 4096 and TRHardwareInfos[Trnum]['PC Bits'] == 4)
-                        or (shots > 1024 and TRHardwareInfos[Trnum]['PC Bits'] == 6)
-                        or (shots > 256 and TRHardwareInfos[Trnum]['PC Bits'] == 8)): 
-                        #PC data are formed from PC and PHM. 
-                        self.__rawDataSets__ += 2
-                        self.totalnumBins += 2*myTrConfig.pcBins[key]
-                    else:
-                        #PC data are formed from PC only.
-                        self.__rawDataSets__ += 1
-                        self.totalnumBins += myTrConfig.pcBins[key]
-            
-            
-            self.exceptedByte = (2*(self.totalnumBins + self.__rawDataSets__ + HEADEROFFSET))
-            self.BufferSize = self.exceptedByte + NEXT_DELIMTER_OFFSET 
-
-    
+        
     def __getActiveAnalogueMem__(self,tmpDataset,section,key):
         ''' 
         get active memory for analogue data. 

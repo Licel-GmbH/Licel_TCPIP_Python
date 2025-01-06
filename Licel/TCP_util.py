@@ -1,5 +1,5 @@
 
-#Copyright ©: Licel Gmbh 
+#Copyright ©: Licel Gmbh
 
 import socket
 
@@ -8,14 +8,30 @@ class util:
     """
     the util class holds utilities method for socket communication. 
     the class is to be inherited by licelTCP and licelTrTCP
+
     """
+    
+    def __init__(self, ip: str, port : int):
+        self.commandSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.PushSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.killsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        self.commandSocket.settimeout(2) # 1sec timeout 
+        self.PushSocket.settimeout(2)
+        self.sockFile=self.commandSocket.makefile('rw')
+        self.pushSockFile=self.PushSocket.makefile('rw')
+        self.ip = ip
+        self.port = port 
+        self.pushPort = port + 1 
+        self.killPort = port + 2
+
     def writeCommand(self,command: str) -> None:
         """
         write the specified command to the ethernet controller. 
         adds <CRLF> to each command before sending.
 
         :param command: possible command are referenced in \r\n
-        https://licel.com/manuals/ethernet_pmt_tr.pdf#page=148
+        https://licel.com/manuals/ethernet_pmt_tr.pdf#section.9.1
 
         :type command: str 
         """
@@ -23,7 +39,7 @@ class util:
         self.commandSocket.send(command.encode())
         return
 
-    def readResponse(self) -> str: 
+    def readResponse(self) -> str:
         """
         read response from the command socket of the ethernet controller. 
 
@@ -31,12 +47,11 @@ class util:
         :raises: timeout exception if  fails to respond.
         """
         try:
-            # note that sockFile.readline() change \r\n to only \n 
-            response = self.sockFile.readline() 
+            # note that sockFile.readline() change \r\n to only \n
+            response = self.sockFile.readline()
             return response
-        except socket.timeout: 
-            raise socket.timeout ("Response timeout")
-              
+        except socket.timeout:
+            raise socket.timeout ("Response timeout") 
         
     def recvall(self, nBins) -> bytearray:
         """
@@ -56,21 +71,23 @@ class util:
             rawData.extend(packet)
         return rawData
     
-    def recvPushData(self, pushBuffer : bytearray, BufferSize :int) -> None:
+    def _writeReadAndVerify(self, command, verifyString):
         """
-        read push/mpush data from the ethernet controller push port. \r\n
-        used for reading push/mpush from transient recorder. \r\n
-        fill ``pushBuffer``   
+        helper function to write on the command socket, it reads and verifies the response 
 
-        :param pushBuffer: buffer containing raw binary data \r\n
-        :type  pushBuffer: bytearray 
+        :param command: command to be sent. 
+        :type command: str 
 
-        :param BufferSize: number of byte to be read \r\n 
-        :type BufferSize: int
+        :param verifyString: substring expected to be received in the response
+        :type: str 
+
+        :raises: RuntimeError if the response does not contain the expected `verifyString`
+
+        :returns: response 
+        :rtype: str
         """
-        while len(pushBuffer) < BufferSize:
-            packet = self.PushSocket.recv(BufferSize)
-            if packet:
-                pushBuffer.extend(packet)
-                   
-        return 
+        self.writeCommand(command)
+        resp= self.readResponse()
+        if resp.find(verifyString) == -1 :
+            raise RuntimeError(resp)
+        return resp

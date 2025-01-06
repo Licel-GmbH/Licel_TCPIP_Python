@@ -1,6 +1,6 @@
 from Licel import  licel_tcpip, photomultiplier
 import argparse
-
+import time
 
 
 
@@ -10,8 +10,8 @@ def commandLineInterface():
                             help='ethernet controller ip address')
     argparser.add_argument('--port', type=int, default=2055,
                             help='ethernet controller command port')
-    argparser.add_argument('--device', type=int, default=0,
-                            help='device number to communicate with')
+    argparser.add_argument('--PMT', type=int, default=0,
+                            help='PMT number to communicate with')
     argparser.add_argument('--voltage', type=int,  default=0,
                             help="desired voltage in Volt.")
 
@@ -24,11 +24,11 @@ def main():
     myArguments = commandLineInterface()    
     ip = myArguments.ip
     port = myArguments.port
-    pmt_device_number = myArguments.device
+    pmt_device_number = myArguments.PMT
     voltage = myArguments.voltage
 
 
-    ethernetController = licel_tcpip.licelTCP (ip, port)
+    ethernetController = licel_tcpip.EthernetController (ip, port)
     pmt = photomultiplier.photomultiplier(ethernetController)
 
     ethernetController.openConnection()
@@ -38,9 +38,11 @@ def main():
     print("*** Listing installed PMT's *** \r\n")
     print(pmt.listInstalledPMT())
     print("\r\n*** Setting PMT number",pmt_device_number, "to", voltage, "Volt *** \r\n")
-    print(pmt.setGain(pmt_device_number,voltage))
+    print(pmt.setHV(pmt_device_number,voltage))
     print("\r\n*** Get PMT", pmt_device_number, "voltage *** \r\n")
     print(pmt.getHV(pmt_device_number))
+    print("\r\n*** Setting PMT number", pmt_device_number, "to 0 Volt *** \r\n")
+    print(pmt.setHV(pmt_device_number,0))
 
     ethernetController.shutdownConnection()
 

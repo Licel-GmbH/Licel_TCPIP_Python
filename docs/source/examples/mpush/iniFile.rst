@@ -86,17 +86,21 @@ A section always begins with [TR<n>] where n indicates the address of the transi
 
 * **FreqDivider** : Set the frequency divider, it changes the sampling rate before 
                     the summation, so with FreqDivider value of 0 and bin width 3.75m you will get 3.75m range resolution.
-                    With a freqDividerExponent of 3 you will get 30m range resolution.
-                    Valid values are 0 .. 7
+                    With a FreqDivider of 8 you will get 30m range resolution.
+                    Valid values are 0, 1, 2 ,4, 8, 16, 32, 64, 128.
 
 * **ShotLimit**   : Sets the maximum number of shots that the TR should acquire.
                     valid values are arbitrary number between 2 and 64K
 
 * **Discriminator** : level between 0 and 63
 
-* **Pretrigger**: The pretrigger is 128 bins long. The command can be used only if the ``TRHardwareInfo['HWCAP']`` contains the bits 0xF9
-        * 0 : disable pretrigger
-        * 1 : enable pretrigger 
+* **Pretrigger**: The pretrigger is 1/16 of the hardware tracelength.
+                  The command can be used only if the ``TRHardwareInfo['HWCAP']`` contains the bits 0xF9
+
+                  * 0 : disable pretrigger
+                  * 1 : enable pretrigger 
+
+                  For more info see https://licel.com/manuals/TR40-16bit3U_Manual.pdf#subsection.3.8
 
 * **Threshold** : Sets the damping state to either on or off
     * 0 : damping state off 

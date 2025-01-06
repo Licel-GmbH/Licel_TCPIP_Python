@@ -14,7 +14,7 @@ Call the script using:
         --port      command socket port number, (default 2055)
         --acq       desired number of acquisitions
         --channel   Selects the ADC channel for the data acquisition. 
-                    channel can either be 0 for photodiode or 2 for powermeter. (defaule 0)       
+                    channel can either be 0 for photodiode or 2 for powermeter. (default 0)       
 
 The powermeter can be operate in 2 modes : 
 

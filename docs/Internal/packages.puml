@@ -1,0 +1,33 @@
+@startuml packages
+set namespaceSeparator none
+package "Licel" as Licel {
+}
+package "Licel.TCP_util" as Licel.TCP_util {
+}
+package "Licel.licel_Config" as Licel.licel_Config {
+}
+package "Licel.licel_data" as Licel.licel_data {
+}
+package "Licel.licel_tcpip" as Licel.licel_tcpip {
+}
+package "Licel.licel_tr_tcpip" as Licel.licel_tr_tcpip {
+}
+package "Licel.photomultiplier" as Licel.photomultiplier {
+}
+package "Licel.powermeter" as Licel.powermeter {
+}
+Licel.licel_data --> Licel
+Licel.licel_data --> Licel.licel_tr_tcpip
+Licel.licel_tcpip --> Licel
+Licel.licel_tcpip --> Licel.TCP_util
+Licel.licel_tcpip --> Licel.licel_tr_tcpip
+Licel.licel_tcpip --> Licel.photomultiplier
+Licel.licel_tr_tcpip --> Licel
+Licel.licel_tr_tcpip --> Licel.TCP_util
+Licel.photomultiplier --> Licel
+Licel.photomultiplier --> Licel.TCP_util
+Licel.powermeter --> Licel
+Licel.powermeter --> Licel.TCP_util
+Licel.licel_Config.Config o-- Licel.licel_Config.TrConfig 
+
+@enduml

@@ -1,0 +1,254 @@
+@startuml classes
+set namespaceSeparator none
+class "Config" as Licel.licel_Config.Config {
+  TrConfigs : list
+  acquisIniConfigPath : str
+  measurmentInfo
+  numDataSets : int
+  parser : ConfigParser
+    .. private getter methods ..
+  __convertRangeToHumanReadable__(range)
+  __getAcquisConfig__()
+  __getActiveAnalogueMem__(tmpDataset, section, key)
+  __getActivePCMem__(tmpDataset, section, key)
+  __getAnalogueBins__(tmpDataset, section, key)
+  __getAnaloguePolarization__(tmpDataset, section, key)
+  __getAnalogueWavelength__(tmpDataset, section, key)
+  __getGlobalInfoConfig__()
+  __getLaserAssignment__(tmpDataset, section, key)
+  __getPMVoltageAnalogue__(tmpDataset, section, key)
+  __getPMVoltagePC__(tmpDataset, section, key)
+  __getPcBins__(tmpDataset, section, key)
+  __getPcPolarization__(tmpDataset, section, key)
+  __getPcWavelength__(tmpDataset, section, key)
+  __getPretrigger__(tmpDataset, section, key)
+  __getShotLimit__(tmpDataset, section, key)
+  __getThreshold__(tmpDataset, section, key)
+  __getfreqDiv__(tmpDataset, section, key)
+  __init__(acquisIniPath)
+  .. public methods ..
+  readConfig()
+}
+class "DataParser" as Licel.licel_data.DataParser {
+  _acquisWrittenToFile : int
+  _path : str
+  .. private methods ..
+  __init__() -> None
+  _checkDelimiter(pushBuffer: bytearray) -> list[int]
+  _combineAnalogSquaredData(uSQLSW, uSQMSW, uSQHSW)
+  _combine_Analog_Datasets(uLSW, uMSW)
+  _combine_Analog_Datasets_16bit(uLSW, uMSW, uPHM)
+  _combine_Photon_Squared_Data(uSQLSW, uSQMSW)
+  _convertPolarizationToFileNotation(polarization)
+  _convert_Photoncounting(uPHO, iPurePhoton)
+  _convert_Photoncounting_Fullword(uPHO, uPHM)
+  _generateAcquisDatasetsHeaderline(Config, TRHardwareInfo, shots, bins, device_number, DataType, Memory)
+  _generateFileName(prefix)
+  _generatePushDatasetsHeaderline(Config, TRHardwareInfo, analogue_shot_dict, pc_shot_dict)
+  _generateSecondHeaderline(Config, startTime, stopTime)
+  _generateThirdHeaderline(Config, shots, timestamp)
+  _isDataValid(pushBuffer, Config)
+  .. public methods ..
+  getSquareRootBinary(combinedAnalogueRawData, combinedSqdData, iNumber, iShots)
+  meanError(sampleStdDev, iShots)
+  normalizeData(combinedAnalogueRawData, iNumber, iShots)
+  normalizeSquaredData(sqd_bin, iShots)
+  parseDataFromBuffer(Config, ethernetController, shots)
+  plot(data, title, x_caption, y_caption)
+  pushDataLog(asciiFile_path, pushBuffer, idn, timestamp, Config)
+  removeInvalidDataFromBuffer(pushBuffer)
+  saveAcquisDataToLicelFileFormat(prefix, shots, bins, Config, my_startTime, my_stoptTime, TRHardwareInfo, deviceNumber, DataType, Memory, Data)
+  savePushDataToFile(DataSet, Config, startTime, stoptTime, TRHardwareInfo, time_stamp, analogue_shot_dict, pc_shot_dict, shots, ACQUISPERFILE)
+  scaleAnalogData(dNormalized, inputRange, TRHardwareInfo)
+  scale_PhotonCounting(normalizedPhotonCount, binWidth)
+}
+class "EthernetController" as Licel.licel_tcpip.EthernetController {
+  __MaxTrNumber : int
+  __TrList : dict
+  __rawDataSets__ : int
+  Tr
+  bigEndianTimeStamp : bool
+  hardwareInfos : dict
+  ip : str
+  pmt
+  port : int
+  pushBuffer : bytearray
+  BufferSize : int
+  exceptedByte : int
+  totalnumBins : int
+  .. private methods ..
+  __init__(ip: str, port: int) -> None
+  _generateMPUSHCommandFromConfig(shots, Config)
+  _getTimestampEndianness()
+  _getTrHardwareInfo(Config) -> dict[dict]
+  _renewSockets()
+  _setDatasetsCount(shots, Config)
+  .. public methods ..
+  MPushStartFromConfig(shots: int, Config)
+  MPushStop()
+  blockRackTrigger(trig: str) -> str
+  configureHardware(Config)
+  getCapabilities() -> str
+  getID() -> str
+  getMilliSecs() -> str
+  killSocket() -> None
+  listInstalledTr() -> licel_tr_tcpip.TransientRecorder
+  openConnection() -> None
+  openPushConnection() -> None
+  reconnection(ConfigInfo)
+  recvPushData() -> None
+  selectTR(numTR: int) -> str
+  shutdownConnection() -> None
+  shutdownPushConnection() -> None
+  unblockRackTrigger() -> str
+}
+class "MeasureInfo" as Licel.licel_Config.MeasureInfo {
+  Azimuth : float
+  Laser0_globalInfo : dict[float, int]
+  Laser1_globalInfo : dict[float, int]
+  Laser2_globalInfo : dict[float, int]
+  Laser3_globalInfo : dict[float, int]
+  Zenith : float
+  cFirstLetter : str
+  dLatitude : float
+  dLongitude : float
+  nAltitude : int
+  nDataSetNumber : int
+  nMaxShotsL0 : int
+  nMaxShotsL1 : int
+  nMaxShotsL2 : int
+  nMaxShotsL3 : int
+  repRateL0 : int
+  repRateL1 : int
+  repRateL2 : int
+  repRateL3 : int
+  szLocation : str
+  szOutPath : str
+}
+class "TrConfig" as Licel.licel_Config.TrConfig {
+  analogueBins : dict[str, int]
+  analogueEnabled : dict[str, bool]
+  analoguePolarisation : dict[str, int]
+  analogueWavelength : dict[str, float]
+  discriminator : int
+  freqDivider : int
+  laserAssignment : dict[str, int]
+  nRange : int
+  nTransientRecorder : int
+  pcBins : dict[str, int]
+  pcEnabled : dict[str, bool]
+  pcPolarisation : dict[str, int]
+  pcWavelength : dict[str, float]
+  pmVoltageAnalogue : dict[str, float]
+  pmVoltagePC : dict[str, float]
+  pretrigger : int
+  shotLimit : int
+  squaredBins : object
+  squaredData
+  threshold : int
+  __post_init__()
+}
+class "TransientRecorder" as Licel.licel_tr_tcpip.TransientRecorder {
+  PushSocket
+  Tr_number : str
+  commandSocket
+  killsock
+  sockFile
+  state : dict
+  .. private methods ..
+  __init__(sock, pushSock, killSock, sockF) -> None
+  _getDataSet(device: int, numberToRead: int, datatype: str, memory: str) -> bytearray
+  _readData(numberToRead: int) -> bytearray
+  _requestData(device: int, numberToRead: int, datatype: str, memory: str) -> str
+  .. public methods ..
+  TRtype() -> dict
+  clearMemory() -> str
+  continueAcquisition() -> str
+  disablePretrigger() -> str
+  enablePretrigger() -> str
+  getCombinedRawAnalogueData(TRType, dataParser, bins, shots, device, memory)
+  getCombinedRawAnalogueSquaredData(dataParser, binsSqd, device, memory)
+  getFreqDivider() -> str
+  getMultipleShots() -> str
+  getMultipleShotsAB() -> str
+  getRawPhotonCountingData(TRType, dataParser, bins, shots, device, memory)
+  getRawPhotonCountingSquaredData(dataParser, binsSqd, device, memory)
+  getShotsAB() -> str
+  getStatus() -> list[bool, bool, str, int]
+  multipleClearMemory() -> str
+  multipleContinueAcquisition() -> str
+  multipleStartAcquisition() -> str
+  multipleStopAcquisition() -> str
+  multipleWaitForReady(miliSec) -> str
+  selectMultipleTR(devicelist: list[int]) -> str
+  selectTR(numTR: int) -> str
+  setDiscriminatorLevel(discriminatorLevel: int) -> str
+  setFreqDivider(freqDivider: int) -> str
+  setInputRange(Range: str) -> str
+  setMaxBins(numMaxBins: int) -> str
+  setMaxShots(maxShots: int) -> str
+  setShotLimit(limit: str) -> str
+  setSlaveMode() -> str
+  setThresholdMode(thresholdMode: str) -> str
+  singleShot() -> str
+  startAcquisition() -> str
+  stopAcquisition() -> str
+  waitForReady(delay: int) -> str
+}
+class "photomultiplier" as Licel.photomultiplier.photomultiplier {
+  commandSocket
+  run_PushThreads : bool
+  sockFile
+  __init__(ethernetController) -> None
+  getHV(device: int) -> str
+  isPMTinstalled(device)
+  listInstalledPMT()
+  setGain(device: int, voltage: int) -> str
+}
+class "powermeter" as Licel.powermeter.powermeter {
+  PushSocket
+  commandSocket
+  pushSockFile
+  run_PushThreads : bool
+  sockFile
+  Start()
+  Stop()
+  .. private methods ..
+  __init__(ethernetController) -> None
+  _parsePowermeterPushResponse(pushResponse) -> list[str, str]
+  _readPowermeterPushResponse() -> str
+  _readPushLine()
+  _writeReadAndVerfiy(command, verifystring)
+  .. public methods ..
+  getNumberOfTrigger()
+  getPowermeterPushData()
+  getTrace()
+  selectChannel(channel: int)
+  startInternalTrigger()
+  stopInternalTrigger()
+}
+class "util" as Licel.TCP_util.util {
+  PushSocket : socket
+  commandSocket : socket
+  ip : str
+  killPort
+  killsock : socket
+  port : int
+  pushPort
+  pushSockFile 
+  sockFile 
+  __init__(ip: str, port: int)
+  readResponse() -> str
+  recvall(nBins) -> bytearray
+  writeCommand(command: str) -> None
+  writeReadAndVerfiy(command, verifystring)
+}
+Licel.licel_tcpip.EthernetController --|> Licel.TCP_util.util
+Licel.licel_tr_tcpip.TransientRecorder --|> Licel.TCP_util.util
+Licel.photomultiplier.photomultiplier --|> Licel.TCP_util.util
+Licel.powermeter.powermeter --|> Licel.TCP_util.util
+Licel.licel_Config.MeasureInfo --* Licel.licel_Config.Config : measurmentInfo
+Licel.licel_tr_tcpip.TransientRecorder --* Licel.licel_tcpip.EthernetController : Tr
+Licel.photomultiplier.photomultiplier --* Licel.licel_tcpip.EthernetController : pmt
+Licel.licel_Config.Config o-- Licel.licel_Config.TrConfig 
+@enduml

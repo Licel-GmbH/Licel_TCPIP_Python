@@ -6,13 +6,28 @@ python sampleAcquis.py --ip <ip> --port <port> --device <Tr address> --memory <m
                     --bins <number of bins to read> --sqd_bins <number of sqd bins to read>
                     --range 100mV --squared|no-squared
 '''
-from Licel import  licel_data,licel_tcpip
+from Licel import  licel_data,licel_tcpip, licel_Config
 import time 
 import numpy
 import argparse
 
 
-def saveDataToFile(filename, TRType, inputRange, shots, dmVData, datatype):
+def setMeasurmentInfo():
+    
+    MeasurmentInfo = licel_Config.MeasureInfo
+    MeasurmentInfo.szLocation = "Berlin"      #measurement site
+    MeasurmentInfo.nAltitude  = 45.000000     #the altitude above sea level
+    MeasurmentInfo.dLongitude = 13.384714     # the longitude 11 digits (including - sign), six decimal places
+    MeasurmentInfo.dLatitude  = 52.542598     #the latitude (11 digits (including - sign), six decimal places)
+    MeasurmentInfo.Zenith     =  1.0          #the zenith angle (four digits in degrees), one decimal place) 
+    MeasurmentInfo.Azimuth    = 15.000000     #the azimuth angle (four digits in degrees), one decimal place)
+    MeasurmentInfo.repRateL0  = 10 
+    MeasurmentInfo.repRateL1  = 10
+    MeasurmentInfo.repRateL2  = 10
+    
+    return MeasurmentInfo
+
+def saveDataToFile( filename, TRType, inputRange, shots, dmVData, datatype):
     header =( "ADC bits : {:d} \r\n Input Range : {:s} \r\n total shots : {:d}\r\n {:s}"
              .format(TRType['ADC Bits'], inputRange, shots, datatype))
     numpy.savetxt(filename, dmVData, header=header, newline='\r\n')
@@ -53,36 +68,35 @@ def main():
     binsSqd = myArguments.sqd_bins
     inputRange = "-"+myArguments.range
 
-    ethernetController = licel_tcpip.licelTCP (ip, port)
+    ethernetController = licel_tcpip.EthernetController (ip, port)
     dataParser = licel_data.DataParser()
 
     ethernetController.openConnection()
     print(ethernetController.getID())
     print(ethernetController.getCapabilities())
-    MyTR = ethernetController.listInstalledTr()
-    print("number of detected transient recorders:", ethernetController.MaxTrNumber,"\r\n")
-    
+    installedTr = ethernetController.listInstalledTr()
+    print(installedTr)
     ethernetController.selectTR(0)
-    TRType = MyTR.TRtype()
+    TRType = ethernetController.Tr.TRtype()
     print("TR Info : ", TRType, " \r\n")
 
     # Configure acquisition 
-    print(MyTR.setInputRange(inputRange))
-    print(MyTR.setThresholdMode("ON"))
-    print(MyTR.setDiscriminatorLevel(8))
-    print(MyTR.setMaxShots(4094))
+    print(ethernetController.Tr.setInputRange(inputRange))
+    print(ethernetController.Tr.setThresholdMode("ON"))
+    print(ethernetController.Tr.setDiscriminatorLevel(8))
+    print(ethernetController.Tr.setMaxShots(4094))
 
     # start the acquisition 
-    print(MyTR.startAcquisition())
+    print(ethernetController.Tr.startAcquisition())
     time.sleep(1) 
-    print(MyTR.stopAcquisition()) # stop the Transient recorder 
-    print(MyTR.waitForReady(400)) # wait until the TR returns to the idle state
+    print(ethernetController.Tr.stopAcquisition()) # stop the Transient recorder 
+    print(ethernetController.Tr.waitForReady(400)) # wait until the TR returns to the idle state
 
-    acquisitionState, recording, mem,shots =MyTR.getStatus()
+    acquisitionState, recording, mem,shots =ethernetController.Tr.getStatus()
     print("Shots Acquired : ", shots)
 
     # Get analogue raw data
-    combinedAnalogueRawData, iClipping = MyTR.getCombinedRawAnalogueData(TRType,
+    combinedAnalogueRawData, iClipping = ethernetController.Tr.getCombinedRawAnalogueData(TRType,
                                                                     dataParser,
                                                                     bins,
                                                                     shots,
@@ -103,7 +117,7 @@ def main():
     # Get analogue raw squared data
     if DOSQUARE :
         
-        analogueSqdRawData = MyTR.getCombinedRawAnalogueSquaredData(dataParser,
+        analogueSqdRawData = ethernetController.Tr.getCombinedRawAnalogueSquaredData(dataParser,
                                                                     binsSqd,
                                                                     device,
                                                                     memory) 
@@ -128,7 +142,9 @@ def main():
 
 
     # Get photon counting data 
-    photonCountRawData = MyTR.getRawPhotonCountingData(TRType,
+    #TODO FIX PHOTON COUNTING DATA
+
+    photonCountRawData = ethernetController.Tr.getRawPhotonCountingData(TRType,
                                                        dataParser,
                                                        bins,
                                                        shots,
@@ -137,7 +153,7 @@ def main():
     
     dNormalized_PhotonCount = dataParser.normalizeData(photonCountRawData,bins, shots)
     dMHzData = dataParser.scale_PhotonCounting(dNormalized_PhotonCount, TRType['binWidth'])
-
+    
     saveDataToFile("photon.txt",
                     TRType,
                     inputRange,
@@ -149,7 +165,7 @@ def main():
     # Get photon counting squared data 
     if DOSQUARE :
 
-        squared_photon_data = MyTR.getRawPhotonCountingSquaredData(dataParser,
+        squared_photon_data = ethernetController.Tr.getRawPhotonCountingSquaredData(dataParser,
                                                                    binsSqd,
                                                                    device,
                                                                    memory)
