@@ -435,7 +435,6 @@ class DataParser:
                                                 [ethernetController.pushBuffer[parserIndex],
                                                  ethernetController.pushBuffer[parserIndex+1]],
                                                  byteorder='little',signed=False))
-                    
                     parserIndex += MPUSH_SHOTNUM_OFFSET
                     numberToRead = trConfig.analogueBins[memory] 
                     RawLsw = ethernetController.pushBuffer[parserIndex:(2*numberToRead)+parserIndex]
@@ -468,7 +467,7 @@ class DataParser:
                                                                                 mem_extra)
                     DataSet.append(Analogue32BitData)
                     analogue_shot_dict[TRnum] = tmp_analogue_shot_dict
-            
+
             for memory in trConfig.pcEnabled: 
                 if trConfig.pcEnabled[memory] == True: 
                     TRnum = trConfig.nTransientRecorder

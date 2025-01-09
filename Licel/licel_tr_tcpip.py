@@ -4,7 +4,8 @@ import time
 import numpy
 
 
-
+# Block rack trigger accepted string 
+BLOCKTRIGGER = {"BLOCK A", "BLOCK B", "BLOCK C", "BLOCK D"}
 # Datasets
 DATASETSTYPE =MappingProxyType( { 
 'PC'  : 'PC'  ,
@@ -120,6 +121,33 @@ class TransientRecorder(TCP_util.util):
         ''' Disable the pretrigger for a selected TR'''
         return  self._writeReadAndVerify("PRETRIG 0", "executed")
     
+    def blockRackTrigger(self, trig: str) -> str:
+        '''
+        Block a trigger related to the acquisition at the specified Memory = A, B, C, or D. The typical use case
+        is when the rack trigger A and B are driven but a certain channel should be active only when trigger
+        A or B arrives
+        To unblock Trigger see ``unblockRackTrigger``
+
+        :param trig: trigger to be blocked, possible value are ``A``, ``B``, ``C``, ``D``
+        :type trig: str
+
+        '''
+        mode ="BLOCK " + trig
+        if (not (mode in BLOCKTRIGGER )) :
+            raise ValueError ('Argument can only be "A", "B", "C", "D"')
+        self.writeCommand(mode)
+        resp = self.readResponse()
+        assert resp == "BLOCK executed\n", "\r\nLicel_TCPIP_BlockRackTrigger - Error 5108 : " + resp
+        return resp
+    
+    def unblockRackTrigger(self) -> str:
+        '''
+        To unblock previously blocked triggers by ``blockRackTrigger``
+        '''
+        self.writeCommand("BLOCK OFF")
+        resp = self.readResponse()
+        assert resp == "BLOCK executed\n", "\r\nLicel_TCPIP_UnblockRackTrigger - Error 5108 : " + resp
+        return resp
     def startAcquisition(self) -> str :
         ''' Start the currently selected transient recorder.'''
         return  self._writeReadAndVerify("START", "executed")

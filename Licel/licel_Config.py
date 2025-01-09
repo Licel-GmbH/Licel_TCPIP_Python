@@ -128,6 +128,12 @@ class TrConfig:
                                                                         "C":0.0,
                                                                         "D":0.0}))
 
+    #: holds information if the any global triggers is blocked  
+    blockedTrig : dict[str, bool] = field(default_factory = lambda: ({"A":False,
+                                                                      "B":False,
+                                                                      "C":False,
+                                                                      "D":False})) 
+     
     def __post_init__(self):
         if self.discriminator is None:
             self.discriminator = 'not defined'
@@ -263,6 +269,7 @@ class Config():
                     self.__getPretrigger__(tmpDataset, section, key) 
                     self.__getfreqDiv__(tmpDataset, section, key) 
                     self.__getThreshold__(tmpDataset, section, key) 
+                    self.__getBlockedTrigger__(tmpDataset,section,key)
 
                 self.TrConfigs.append(tmpDataset)
                 del tmpDataset
@@ -280,6 +287,19 @@ class Config():
             tmpDataset.analogueEnabled["C"] = self.parser.getboolean(section,key)
         if (key == "analogd"): 
             tmpDataset.analogueEnabled["D"] = self.parser.getboolean(section,key)
+
+    def __getBlockedTrigger__(self,tmpDataset,section,key):
+        ''' 
+        get blocked global trigger for memory each memory.
+        '''
+        if (key == "blocktriga"): 
+            tmpDataset.blockedTrig["A"] = self.parser.getboolean(section,key)
+        if (key == "blocktrigb"): 
+            tmpDataset.blockedTrig["B"] = self.parser.getboolean(section,key)
+        if (key == "blocktrigc"): 
+            tmpDataset.blockedTrig["C"] = self.parser.getboolean(section,key)
+        if (key == "blocktrigd"): 
+            tmpDataset.blockedTrig["D"] = self.parser.getboolean(section,key)
 
     def __getActivePCMem__(self,tmpDataset,section,key):
         ''' get active memory for photon counting data. 

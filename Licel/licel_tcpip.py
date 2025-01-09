@@ -11,8 +11,7 @@ from Licel import licel_tr_tcpip, photomultiplier, TCP_util
 import select
 import time
 
-# Block rack trigger accepted string 
-BLOCKTRIGGER = {"BLOCK A", "BLOCK B", "BLOCK C", "BLOCK D"}
+
 
 HEADEROFFSET = 3 # 3* 2 byte = 6byte represents first delimiter xff xff + timestamp 
 NEXT_DELIMTER_OFFSET = 2 # 2 byte representing the next delimiter xff xff
@@ -407,20 +406,7 @@ class EthernetController(TCP_util.util):
                 else : 
                     continue
     
-    def blockRackTrigger(self, trig: str) -> str:
-        mode ="BLOCK " + trig
-        if (not (mode in BLOCKTRIGGER )) :
-            raise ValueError ('Argument can only be "A", "B", "C", "D"')
-        self.writeCommand(mode)
-        resp = self.readResponse()
-        assert resp == "BLOCK executed\n", "\r\nLicel_TCPIP_BlockRackTrigger - Error 5108 : " + resp
-        return resp
-    
-    def unblockRackTrigger(self) -> str:
-        self.writeCommand("BLOCK OFF")
-        resp = self.readResponse()
-        assert resp == "BLOCK executed\n", "\r\nLicel_TCPIP_UnblockRackTrigger - Error 5108 : " + resp
-        return resp
+
     
     def _getTimestampEndianness(self):
         Idn = self.getID()
@@ -437,6 +423,7 @@ class EthernetController(TCP_util.util):
             - Frequency divider \r\n
             - Input range \r\n
             - Max shots \r\n
+            - Block global trigger. 
 
         :param Config: holds the acquisition configuration information
         :type Config: Licel.licel_acq.Config()
@@ -468,11 +455,24 @@ class EthernetController(TCP_util.util):
                 nRange_str = "-"+ str(trConfig.nRange) +"mV"
                 print(self.Tr.setInputRange(nRange_str))
                 print(self.multiplyBinwidth(trConfig.freqDivider))
+                self.__configureBlockGlobalTrigger__(trConfig)
+
         self.selectTR(-1)
         self._getTrHardwareInfo(Config)
 
         return 
     
+    def __configureBlockGlobalTrigger__(self, trConfig):
+        print(self.Tr.unblockRackTrigger())
+        if trConfig.blockedTrig["A"]:
+            print(self.Tr.blockRackTrigger("A"))
+        if trConfig.blockedTrig["B"]:
+            print(self.Tr.blockRackTrigger("B"))
+        if trConfig.blockedTrig["C"]:
+            print(self.Tr.blockRackTrigger("C"))
+        if trConfig.blockedTrig["D"]:
+            print(self.Tr.blockRackTrigger("D"))
+
     def _setDatasetsCount(self, shots, Config):
         """ 
         we parse the Configuration and calculate how many (raw)dataset 
