@@ -61,10 +61,14 @@ class  photomultiplier(TCP_util.util):
         """
         resp = self.setHV(device,0)
         voltage = self.getHV(device).split(" ")[1]
-        if ((float (voltage) <360) and (float(voltage) >350)): 
+        try:
+            if ((float (voltage) <360) and (float(voltage) >350)): 
+                return False
+            else : 
+                return True
+        except: 
+            #returned response from getHV() PMT not available
             return False
-        else : 
-            return True
         
     def listInstalledPMT(self):
         """

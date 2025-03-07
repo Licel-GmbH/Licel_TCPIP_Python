@@ -1,3 +1,5 @@
 # use glob syntax.
 *.pyc
 .vscode
+data/
+docs/build/
