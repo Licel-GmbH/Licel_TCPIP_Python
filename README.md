@@ -4,6 +4,10 @@
 
 **running this library with python version 3.8 will result in error** 
 
+# **Documentation** 
+**Documentation is to be found under:**
+https://licel-gmbh.github.io/Licel_TCPIP_Python/
+
 ## Installing requirements: 
 - pip install -r requirements.txt
 
@@ -33,3 +37,10 @@ python3 mpush.py --ip <ip> --port <port>  --acq <num acquis> --shots <num shots>
 
 mpush_example.py demonstrate the use of mpush mode to read multiple datasets from multiple transient recorders, at the same time. 
 
+## run wave_rider.oy 
+
+python3 wind_example.py --ip <ip> --port <port> --shots <shots> 
+                        --fft_size <fft_size> --range <range> 
+
+wind_example.py shows how to configure the Waverider, collect power spectrum data,
+and save the data in a NETCDF file.
