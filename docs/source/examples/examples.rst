@@ -7,3 +7,4 @@ Examples
    mpush/mpush
    powermeter/powermeter
    photomultiplier/photomultiplier
+   waverider/wind_example

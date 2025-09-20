@@ -19,3 +19,7 @@ API reference
 
     API_reference/TCP_util
 
+    API_reference/licel_wind
+
+    API_reference/licel_netCDF
+
