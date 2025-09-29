@@ -11,11 +11,11 @@ import argparse
 import time
 import numpy as np
 
-# Acquisition paramters
-RUNS = 4
+# Acquisition parameters
+runs = 4
 num_trig = 1
 samplingRate_hz = 250000000
-# geographical position paramters
+# geographical position parameters
 Altitude = 65
 Longitde = 52.54255953597681 
 Latitude = 13.384646763135557
@@ -87,9 +87,8 @@ def main():
     waverider_NetCDF.timestamp_start[:] = waverider.getMSEC()
     waverider_NetCDF.pc_time_start[:] = waverider_NetCDF.time_unix_to_epoch_1904()
     print("Starting Acquistion")
-    CYCLE = 0
-    startCycle = 0
-    while CYCLE < RUNS : 
+    cycle = 0
+    while cycle < runs : 
         waverider.startAcq()
         dataAvailable = False 
         while dataAvailable == False: 
@@ -101,8 +100,8 @@ def main():
 
         currentShots = waverider.getCurrentShots()
 
-        waverider_NetCDF.saveNetcdf(CYCLE, powerSpectra, timestamp, currentShots)
-        CYCLE = CYCLE + 1
+        waverider_NetCDF.saveNetcdf(cycle, powerSpectra, timestamp, currentShots)
+        cycle = cycle + 1
 
 if __name__ == "__main__":
     main()
