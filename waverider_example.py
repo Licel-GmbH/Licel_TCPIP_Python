@@ -83,14 +83,14 @@ def main():
     waverider_NetCDF.fillAcquisitionInfo(MaxRange_meter, samplingRate_hz,
                                          shots, FFT_Size, waverider )
     
-    print(waverider.startAcq())
 
     waverider_NetCDF.timestamp_start[:] = waverider.getMSEC()
     waverider_NetCDF.pc_time_start[:] = waverider_NetCDF.time_unix_to_epoch_1904()
-
+    print("Starting Acquistion")
     CYCLE = 0
     startCycle = 0
     while CYCLE < RUNS : 
+        waverider.startAcq()
         dataAvailable = False 
         while dataAvailable == False: 
             dataAvailable = waverider.isDataAvailable() 
