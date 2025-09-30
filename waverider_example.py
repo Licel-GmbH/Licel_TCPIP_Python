@@ -17,7 +17,7 @@ num_trig = 1
 samplingRate_hz = 250000000
 # geographical position parameters
 Altitude = 65
-Longitde = 52.54255953597681 
+Longitude = 52.54255953597681 
 Latitude = 13.384646763135557
 azimuth = 23
 zenith = 20
@@ -77,7 +77,7 @@ def main():
     waverider_NetCDF = licel_netCDF.Licel_Netcdf_Wrapper("filename.nc","w", "Waverider",
                                                      numFFT, FFT_Size, num_trig)
     
-    waverider_NetCDF.fillGeoPositionInfo("Berlin", Latitude, Longitde,
+    waverider_NetCDF.fillGeoPositionInfo("Berlin", Latitude, Longitude,
                                      Altitude, azimuth, zenith )
     
     waverider_NetCDF.fillAcquisitionInfo(MaxRange_meter, samplingRate_hz,
@@ -86,7 +86,7 @@ def main():
 
     waverider_NetCDF.timestamp_start[:] = waverider.getMSEC()
     waverider_NetCDF.pc_time_start[:] = waverider_NetCDF.time_unix_to_epoch_1904()
-    print("Starting Acquistion")
+    print("Starting Acquisition")
     cycle = 0
     while cycle < runs : 
         waverider.startAcq()
