@@ -114,7 +114,6 @@ def main():
     ethernetController.shutdownPushConnection()
     stopTime =  datetime.now()
     print("{} acquisition written to {} \r\n"
-        .format(cycle_count, ConfigInfo.measurmentInfo.szOutPath))
     print("*** Stopped mpush acquisition at:",stopTime, " *** \r\n")
 
 if __name__ == "__main__":

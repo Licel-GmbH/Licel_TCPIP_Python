@@ -548,7 +548,7 @@ class DataParser:
         :returns: second header line. 
         :rtype: str
         """        
-        measInfo = Config.measurmentInfo
+        measInfo = Config.measurementInfo
         assert len(measInfo.szLocation) <= 8, "Measurement site must be 8 character"
         header =(' {:8s} {:19s} {:19s} {:04d} {:011.6f} {:011.6f} {:04.1f} {:04.1f}\n'
                  .format(measInfo.szLocation,startTime,stopTime,
@@ -571,7 +571,7 @@ class DataParser:
         :param timestamp: timestamp received with from the controller in millisec
         :type timestamp: uint 
         """
-        measurConf = Config.measurmentInfo
+        measurConf = Config.measurementInfo
         myDataSetsnum = 1
         if timestamp :
             header =(' {:d} {:04d} {:07d} {:04d} {:02d} {:07d} {:04d} {:d}\n'
@@ -720,16 +720,16 @@ class DataParser:
         '''    
         # file name needs to be written for each acquisition,
         # it holds the timestamp of the acquisition
-        filename = self._generateFileName(Config.measurmentInfo.cFirstLetter)
+        filename = self._generateFileName(Config.measurementInfo.cFirstLetter)
         
         if (self._acquisWrittenToFile > ACQUISPERFILE -1):             
             self._myFileDescriptor.close()
             self._acquisWrittenToFile = 0
-            self._path = os.path.join(Config.measurmentInfo.szOutPath,filename)
+            self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
             self._myFileDescriptor = open(self._path, "ab")
 
         if (self._acquisWrittenToFile == 0) :
-            self._path = os.path.join(Config.measurmentInfo.szOutPath,filename)
+            self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
             self._myFileDescriptor = open(self._path, "ab")
 
 
@@ -871,7 +871,7 @@ class DataParser:
         '''    
         filename = self._generateFileName(prefix)
         
-        self._path = os.path.join(Config.measurmentInfo.szOutPath,filename)
+        self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
         
         my_startTime = my_startTime.strftime("%d/%m/%Y %H:%M:%S")
         my_stopTime = my_stopTime.strftime("%d/%m/%Y %H:%M:%S")
