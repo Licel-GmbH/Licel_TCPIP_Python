@@ -392,7 +392,7 @@ class SP32(TCP_util.util):
         Config.numDataSets = 32
         filename = dataHandler._generateFileName(prefix)
 
-        fileDescriptor = open (os.path.join(Config.measurmentInfo.szOutPath,filename), 'ab')
+        fileDescriptor = open (os.path.join(Config.measurementInfo.szOutPath,filename), 'ab')
         my_startTime = starttime.strftime("%d/%m/%Y %H:%M:%S")
         my_stopTime = stoptime.strftime("%d/%m/%Y %H:%M:%S")
         

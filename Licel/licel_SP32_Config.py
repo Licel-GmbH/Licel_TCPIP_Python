@@ -16,7 +16,7 @@ class SP32_Config():
         self.configFilePath = configFilePath
         self.numDataSets  = 32
         self.SP32param = SP32param()
-        self.measurmentInfo = licel_Config.MeasureInfo()
+        self.measurementInfo = licel_Config.MeasureInfo()
         self.parser = configparser.ConfigParser()
 
     def readConfig(self):
@@ -38,56 +38,56 @@ class SP32_Config():
         tmpPolarization = 0
         for section in sections:
             if section.find("Laser1") >= 0:
-               self.measurmentInfo.Laser0_globalInfo.pop(0.0)
+               self.measurementInfo.Laser0_globalInfo.pop(0.0)
                for key in self.parser[section]:
                         if key.find("wavelength") > -1: 
                             tmpWavelength = float(self.parser[section][key].replace(",","."))
                         if key.find("polarization") > -1:
                             tmpPolarization = self.parser.getint(section,key)
-                        self.measurmentInfo.Laser0_globalInfo.update({tmpWavelength : tmpPolarization})
+                        self.measurementInfo.Laser0_globalInfo.update({tmpWavelength : tmpPolarization})
 
             if section.find("Laser2") >= 0:
-               self.measurmentInfo.Laser1_globalInfo.pop(0.0)
+               self.measurementInfo.Laser1_globalInfo.pop(0.0)
                for key in self.parser[section]:
                         if key.find("wavelength") > -1: 
                             tmpWavelength = float(self.parser[section][key].replace(",","."))
                         if key.find("polarization") > -1:
                             tmpPolarization = self.parser.getint(section,key)
-                        self.measurmentInfo.Laser1_globalInfo.update({tmpWavelength : tmpPolarization})
+                        self.measurementInfo.Laser1_globalInfo.update({tmpWavelength : tmpPolarization})
 
             if section.find("Laser3") >= 0:
-               self.measurmentInfo.Laser2_globalInfo.pop(0.0)
+               self.measurementInfo.Laser2_globalInfo.pop(0.0)
                for key in self.parser[section]:
                         if key.find("wavelength") > -1: 
                             tmpWavelength = float(self.parser[section][key].replace(",","."))
                         if key.find("polarization") > -1:
                             tmpPolarization = self.parser.getint(section,key)
-                        self.measurmentInfo.Laser2_globalInfo.update({tmpWavelength : tmpPolarization})
+                        self.measurementInfo.Laser2_globalInfo.update({tmpWavelength : tmpPolarization})
 
             if (section == "global_info" ):
                for key in self.parser[section]:
                     if key.find("location") >= 0: 
-                       self.measurmentInfo.szLocation = self.parser[section][key].replace('"', "")
+                       self.measurementInfo.szLocation = self.parser[section][key].replace('"', "")
                     if key.find("longitude") >= 0: 
-                        self.measurmentInfo.dLongitude = float(self.parser[section][key].replace(",",".")) 
+                        self.measurementInfo.dLongitude = float(self.parser[section][key].replace(",",".")) 
                     if key.find("latitude") >= 0: 
-                        self.measurmentInfo.dLatitude = float(self.parser[section][key].replace(",","."))
+                        self.measurementInfo.dLatitude = float(self.parser[section][key].replace(",","."))
                     if key.find("azimuth") >= 0: 
-                        self.measurmentInfo.Azimuth   = float(self.parser[section][key].replace(",",".")) 
+                        self.measurementInfo.Azimuth   = float(self.parser[section][key].replace(",",".")) 
                     if key.find("height_asl") >= 0: 
-                        self.measurmentInfo.nAltitude = int(float(self.parser[section][key].replace(",","."))) 
+                        self.measurementInfo.nAltitude = int(float(self.parser[section][key].replace(",","."))) 
                     if key.find("working_dir") >= 0: 
-                        self.measurmentInfo.szOutPath = self.parser[section][key].replace('"', "") 
+                        self.measurementInfo.szOutPath = self.parser[section][key].replace('"', "") 
                     if key.find("first_letter") >= 0: 
-                        self.measurmentInfo.cFirstLetter = self.parser[section][key].replace('"', "") 
+                        self.measurementInfo.cFirstLetter = self.parser[section][key].replace('"', "") 
                     if key.find("frequency1") >= 0: 
-                        self.measurmentInfo.repRateL0 = int(float(self.parser[section][key].replace(",","."))) 
+                        self.measurementInfo.repRateL0 = int(float(self.parser[section][key].replace(",","."))) 
                     if key.find("frequency2") >= 0: 
-                        self.measurmentInfo.repRateL1 = int(float(self.parser[section][key].replace(",","."))) 
+                        self.measurementInfo.repRateL1 = int(float(self.parser[section][key].replace(",","."))) 
                     if key.find("frequency3") >= 0: 
-                        self.measurmentInfo.repRateL2 = int(float(self.parser[section][key].replace(",","."))) 
+                        self.measurementInfo.repRateL2 = int(float(self.parser[section][key].replace(",","."))) 
                     if key.find("zenith") >= 0: 
-                        self.measurmentInfo.Zenith = float(self.parser[section][key].replace(",","."))
+                        self.measurementInfo.Zenith = float(self.parser[section][key].replace(",","."))
         self.parser.clear()
 
 
