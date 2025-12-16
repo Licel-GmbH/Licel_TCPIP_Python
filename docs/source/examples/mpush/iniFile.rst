@@ -1,5 +1,5 @@
 
-**Acquis.ini File**
+Acquis.ini File
 ====================
 
 The initialization file acquis.ini contains definition sections for each transient recorder.

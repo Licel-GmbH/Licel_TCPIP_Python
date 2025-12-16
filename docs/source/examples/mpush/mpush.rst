@@ -1,5 +1,6 @@
-Mpush example
-==============
+====================
+**Mpush example**
+====================
 
 The mpush mode is the most efficient way to acquire data from multiple transient recorder. 
 In this mode the ethernet controller will automatically send data to the computer as soon as 

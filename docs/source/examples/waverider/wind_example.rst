@@ -1,5 +1,6 @@
-waverider example
-===================
+==============================
+**waverider example**
+==============================
 
 The Licel Waverider module is designed to be used in pulsed coherent Doppler Wind systems.
 It takes the output of balanced fiber detector together with a synchronizing trigger pulse and computes

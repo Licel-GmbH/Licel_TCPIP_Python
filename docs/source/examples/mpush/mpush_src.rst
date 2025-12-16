@@ -1,4 +1,4 @@
-**mpush source documentation** 
+mpush source documentation
 ================================
 
 In what follow we will describe section by section the mpush example. 
@@ -79,9 +79,9 @@ the following are wrapper for low level interaction with the hardware.
 .. code-block:: python 
 
     
-    print(ethernetController.listInstalledTr())   
+    print(ethernetController.Tr.listInstalledTr())   
 
-* **ethernetController.listInstalledTr()**: will attempt to communicate with Transient recorders ranging for (0 .. 7).
+* **ethernetController.Tr.listInstalledTr()**: will attempt to communicate with Transient recorders ranging for (0 .. 7).
         and then return a dictionary describing if TR(n) is installed or not. 
         if no Transient recorder is detected in the system, it will raise an ``RuntimeError`` 
 
@@ -90,7 +90,7 @@ the following are wrapper for low level interaction with the hardware.
 ---------------------------------------------------------------------------------------------------------
 .. code-block:: python 
 
-     ethernetController.configureHardware(ConfigInfo)
+     ethernetController.Tr.configureHardware(ConfigInfo)
 
 * the current supported configuration is :
     * Discriminator level  
@@ -103,15 +103,16 @@ the following are wrapper for low level interaction with the hardware.
 for more information about the supported configuration see :ref:`TRini-File`
 
 .. _Start Mpush:
+
 8. Start the MPUSH acquisition.
 -----------------------------------------------------------
 
 .. code-block:: python 
 
-    print(ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo))
+    print(ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo))
 
 
-* **ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo)**: 
+* **ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo)**: 
     Starts the MPUSH acquisition mode from configuration: 
     
     The ethernet controller wil automatically transfer data via push socket as soon as data is available.
@@ -124,7 +125,7 @@ for more information about the supported configuration see :ref:`TRini-File`
     * Generate the MPUSH command depending on the Config.  
     * Sends the generated MPUSH command to the controller. 
 
-    timestamp endianness and Hardware information are to be stored in the ``ethernetController`` object
+    timestamp endianness and Hardware information are to be stored in the ``ethernetController.Tr`` object
     internally to be later used when parsing and saving the data. 
 
 
@@ -170,6 +171,7 @@ A connection error can always occur, so we handle this exception by trying to re
     Restart MPUSH see :ref:`Start Mpush`
 
 .. _Single Acq:
+
 9. Single acquisition cycle
 -------------------------------
 
@@ -183,9 +185,16 @@ A single acquisition cycle consists of :
     def singleAcquistionCycle(ethernetController, dataParser, ConfigInfo):
         
         startTime =  datetime.now()
-        ethernetController.recvPushData() 
+        ethernetController.Tr.recvPushData() 
         stopTime =  datetime.now()
 
+        if (LOGPUSHDATA): 
+            Idn = ethernetController.getID()
+            dataParser.pushDataLog(logFilePath,
+                                    ethernetController,
+                                    Idn,
+                                    startTime,
+                                    ConfigInfo)
         (dataValid,
         dataSets,
         time_stamp,
@@ -193,12 +202,12 @@ A single acquisition cycle consists of :
         pc_shots) = dataParser.parseDataFromBuffer(ConfigInfo,
                                                     ethernetController,
                                                     desiredShots)
-
+        
         if (dataValid): 
-            dataParser.savePushDataToFile(dataSets,
+            dataParser.savePushDataToLicelFileFormat(dataSets,
                                         ConfigInfo,
                                         startTime,stopTime,
-                                        ethernetController.hardwareInfos,
+                                        ethernetController.Tr.hardwareInfos,
                                         time_stamp,
                                         analogue_shots, 
                                         pc_shots,
@@ -206,42 +215,32 @@ A single acquisition cycle consists of :
                                         ACQUISPERFILE ) 
 
         else :
-            if (LOGPUSHDATA): 
-                controllerTimeMs = ethernetController.getMilliSecs()
-                Idn = ethernetController.getID()
-                print("Invalid data received with timestamp:",controllerTimeMs)
-                dataParser.pushDataLog(logFilePath,
-                                        ethernetController.pushBuffer,
-                                        Idn,
-                                        controllerTimeMs,
-                                        ConfigInfo)
             # if data is not valid clear buffer until next occurrence of xff xff 
             dataParser.removeInvalidDataFromBuffer(ethernetController.pushBuffer)
 
-* **ethernetController.recvPushData()**:
-    Fills the internal ``ethernetController.pushBuffer`` with the received raw binary. 
-    This function will wait until ``ethernetController.pushBuffer`` is completely filled.
-    Internally ``ethernetController.BufferSize`` determines ``ethernetController.pushBuffer``size.
+* **ethernetController.Tr.recvPushData()**:
+    Fills the internal ``ethernetController.Tr.pushBuffer`` with the received raw binary. 
+    This function will wait until ``ethernetController.Tr.pushBuffer`` is completely filled.
+    Internally ``ethernetController.Tr.BufferSize`` determines ``ethernetController.Tr.pushBuffer``size.
 
     This function could raise ``ConnectionError``.
 
-* **dataParser.parseDataFromBuffer(ConfigInfo, ethernetController, desiredShots)**   
-    Parse the ``ethernetController.pushBuffer`` and checks for data validity. 
+* **dataParser.parseDataFromBuffer(ConfigInfo, ethernetController, desiredShots)**:   
+    Parse the ``ethernetController.Tr.pushBuffer`` and checks for data validity. 
     returns a list containing the requested data sets to be later stored in data files. 
     for more information see: 
     :py:meth:`Licel.licel_data.DataParser.parseDataFromBuffer`
 
-* **dataParser.savePushDataToFile(dataSets, ConfigInfo, startTime,stopTime, ethernetController.hardwareInfos,
-                                   time_stamp, analogue_shots, pc_shots, desiredShots, ACQUISPERFILE )**
+* **dataParser.savePushDataToFile(dataSets, ConfigInfo, startTime,stopTime, ethernetController.hardwareInfos,time_stamp, analogue_shots, pc_shots, desiredShots, ACQUISPERFILE )**
     save file in the directory specified in the .ini File.
     for more information see :py:meth:`Licel.licel_data.DataParser.savePushDataToFile`
 
 * **dataParser.removeInvalidDataFromBuffer(pushBuffer)**
-    in case the ``ethernetController.pushBuffer`` contains invalid data, for example data was lost during the 
-    transmission, we will simply discard the invalid data from the ``ethernetController.pushBuffer``
+    in case the ``ethernetController.Tr.pushBuffer`` contains invalid data, for example data was lost during the 
+    transmission, we will simply discard the invalid data from the ``ethernetController.Tr.pushBuffer``
 
-* **dataParser.pushDataLog(logFilePath, ethernetController.pushBuffer, Idn, controllerTimeMs, ConfigInfo)**
-    log invalid Data. Used for trouble shooting.
+* **dataParser.pushDataLog(logFilePath, ethernetController, Idn, startTime, ConfigInfo)**
+    log raw Data. Used for trouble shooting.
 
 10. disable push mode and close connection to the ethernet controller.
 ----------------------------------------------------------------------
@@ -249,12 +248,12 @@ A single acquisition cycle consists of :
 .. code-block:: python
 
     
-    ethernetController.MPushStop()
+    ethernetController.Tr.MPushStop()
     ethernetController.shutdownConnection()
     ethernetController.shutdownPushConnection()
 
 
-**ethernetController.MPushStop()** 
+**ethernetController.Tr.MPushStop()** 
     set all the active transient recorder back to slave. 
 
 **ethernetController.shutdownConnection()** 
