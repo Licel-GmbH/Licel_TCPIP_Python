@@ -1,7 +1,7 @@
 from Licel import TCP_util
 import struct
 import numpy as np
-import win_precise_time as wpt
+
 
 from typing import TYPE_CHECKING, Any, Union
 
