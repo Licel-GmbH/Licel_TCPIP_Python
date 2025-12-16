@@ -1,2 +1,5 @@
 numpy >= 2.1.2
 matplotlib >= 3.9.2
+netCDF4 >=1.7.3
+typing-extensions >=4.15.0
+
