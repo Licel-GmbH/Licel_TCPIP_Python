@@ -1,8 +1,13 @@
-from Licel import TCP_util
+from Licel import TCP_util, licel_tcpip
 from types import MappingProxyType
 import time
 import numpy
+import select
 
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from typing import TextIO 
+    from Licel import licel_data, licel_Config
 
 # Block rack trigger accepted string 
 BLOCKTRIGGER = {"BLOCK A", "BLOCK B", "BLOCK C", "BLOCK D"}
@@ -42,7 +47,8 @@ INPUTRANGE = MappingProxyType({ '-500mV': 0, '-100mV': 1, '-20mV' : 2 })
 # default TRHardwareinfo will be returned for transient produced before 2009 
 
 
-TRHardwareInfo_default = { 'ADC Bits' : 12, 'PC Bits' : 4, 'FIFOLength': 16384,
+TRHardwareInfo_default: dict[str, int | float] = { 
+                           'ADC Bits' : 12, 'PC Bits' : 4, 'FIFOLength': 16384,
                            'binWidth' : 7.5,'ID' :0, 'HWCAP' : 0, 'binShift': 3.0,
                            'raw':0}
 
@@ -61,20 +67,47 @@ BLOCK_GLOBAL_TRIGGER = 0x10
 SQUARED_DATA         = 0x20
 FREQ_DIVIDER         = 0x40
 
+HEADEROFFSET = 3 # 3* 2 byte = 6byte represents first delimiter xff xff + timestamp 
+NEXT_DELIMTER_OFFSET = 2 # 2 byte representing the next delimiter xff xff
 class TransientRecorder(TCP_util.util):
 
     Tr_number = " "
+    __MaxTrNumber = 0
+    __TrDict: dict[str, str] = {}
 
-    def __init__(self, commandSocket, pushSocket, killSocket, socket_File ) -> None:
+    bigEndianTimeStamp = False
+
+    pushBuffer = bytearray()
+
+    #: holds the total number of raw datasets to be read, MSW LSW PC PHM   
+    __rawDataSets__ : int = 0  
+    #: holds the total number of bins to be read.
+    totalnumBins : int = 0 
+    #: Buffer size to receive MPUSH data
+    BufferSize : int = 0 
+    #: number of byte expected to be received for a complete data set      
+    exceptedByte : int = 0  
+
+    #: a dictionary  containing hardware info for each active transient recorder.
+    #  dict{Tr_num : dict{'ADC Bits' : ' ', 'PC Bits' : ' ' , 'FIFOLength': ' ' ,
+    #                     'binWidth' : ' ', 'ID' : ' ', 
+    #                     'HWCAP' : ' ', 'binShift': ' ', 'raw': ' '}}
+    hardwareInfos:dict[int, dict[str, int | str | float]] = {}
+
+    def __init__(self,
+                 commandSocket: TCP_util.socket.socket,
+                 pushSocket: TCP_util.socket.socket,
+                 killSocket: TCP_util.socket.socket,
+                 socket_File ) -> None:
 #        self.Tr_number = TR_num
-        self.state = { "memory" : MEMORY['MEM_A'] ,
+        self.state: dict[str, bool | str] = { "memory" : MEMORY['MEM_A'] ,
                        "recording": False , "acquisitionState": False}
         self.commandSocket  = commandSocket
         self.PushSocket     = pushSocket 
         self.sockFile       = socket_File
         self.killsock       = killSocket
     
-    def getStatus(self) -> list [bool,bool,str,int]:
+    def getStatus(self) -> tuple[bool, bool, str,int]:
         ''' Return the shot number for each memory, there is one clearing cycle at the start.'''
         acquisitionState =False
         recording = False
@@ -101,11 +134,7 @@ class TransientRecorder(TCP_util.util):
         For more info visit: https://licel.com/manuals/ethernet_pmt_tr.pdf#TCPIP.CLEAR
         '''
         return  self._writeReadAndVerify("CLEAR", "executed")
-    
-    def multipleClearMemory(self) -> str:
-        ''' Clear both memories (A and B) of the previously selected devices.'''
-        return  self._writeReadAndVerify("MCLEAR", "executed")
-    
+        
     def enablePretrigger(self) -> str:
         '''
         Enable the pretrigger for a selected TR. In TR20-16bit this will be 128 bins 
@@ -209,6 +238,7 @@ class TransientRecorder(TCP_util.util):
         When the damping is set to low, a discriminator level of 63 outputs -25mV
         When the damping is set to High, a discriminator level of 63 outputs -100mV
         '''
+        cmd = " "
         if (not ((thresholdMode != 'ON') ^ (thresholdMode != 'OFF'))):
             raise ValueError ('setThresholdMode argument must be either "ON" or "OFF" \r\n passed argument is :'+thresholdMode)
         if (thresholdMode == 'ON'):
@@ -263,7 +293,7 @@ class TransientRecorder(TCP_util.util):
         '''
         return (number & (number-1) == 0)
     
-    def TRtype(self) -> dict:
+    def TRtype(self) -> dict[str, int | float | str]:
         '''
         Get transient recorder hardware information for the selected transient 
         recorder. Old TR produced before Oct. 2009 will not support this command 
@@ -273,7 +303,7 @@ class TransientRecorder(TCP_util.util):
         :rtype:  dict{'ADC Bits' : ' ', 'PC Bits' : ' ' , 'FIFOLength': ' ' ,
             binWidth' : ' ','ID' : ' ', 'HWCAP' : ' ', 'binShift': ' ', 'raw': ' '}
         '''
-        tempTRHardwareInfo = {}
+        tempTRHardwareInfo : dict[str, int | float | str] = {}
         resp = self._writeReadAndVerify("TRTYPE?", "TRTYPE ADC Bits")        
         parsedResp = resp.split(" ")
         tempTRHardwareInfo["ADC Bits"] = int(parsedResp[3])
@@ -296,7 +326,7 @@ class TransientRecorder(TCP_util.util):
         assert resp.find("CONTINUE executed") >=0, "\r\nLicel_TCPIP_ContinueAcquisition - Error 5093 : " + resp
         return self._writeReadAndVerify("CONTINUE", "executed")
 
-    def _readData(self, numberToRead : int) -> bytearray :
+    def _readData(self, numberToRead : int) -> bytearray | None :
         '''
         Wait until the the number of scans defined by Number to Read is available
         and reads them or returns a timeout error if the timeout ms is exceeded.
@@ -306,7 +336,7 @@ class TransientRecorder(TCP_util.util):
         return self.recvall(numberToRead)
 
     def _requestData(self, device : int, numberToRead : int,
-                    datatype : str, memory : str ) -> str :
+                    datatype : str, memory : str ) -> None :
         '''
         Requesting the raw data sets ( analog LSW, analog MSW or photon counting) from
         the specified device for later read.
@@ -319,7 +349,7 @@ class TransientRecorder(TCP_util.util):
         self.writeCommand(commadTosend)
 
     def _getDataSet(self, device : int, numberToRead : int,
-                    datatype : str, memory : str ) -> bytearray :
+                    datatype : str, memory : str ) -> bytearray | None :
         '''
         Reading the raw data sets ( analog LSW, analog MSW or photon counting) from
         the specified device.
@@ -440,7 +470,11 @@ class TransientRecorder(TCP_util.util):
         raise RuntimeError ("Transient recorder did not return from armed state\r\n")
     
 
-    def getCombinedRawAnalogueData(self, TRType, dataParser, bins, shots, device, memory):
+    def getCombinedRawAnalogueData(self, TRType: dict[str, int | float | str],
+                                   dataParser: 'licel_data.DataParser',
+                                   bins: int, shots: int, device: int,
+                                   memory: str) ->tuple[numpy.ndarray[Any, numpy.dtype[numpy.uint32]],
+                                                        numpy.ndarray[Any, numpy.dtype[numpy.uint32]]]:
         """
         get the combined raw analogue data set. 
 
@@ -484,7 +518,8 @@ class TransientRecorder(TCP_util.util):
             mem_high = numpy.frombuffer(mem_high_buffer,numpy.uint16)
             return dataParser._combine_Analog_Datasets(mem_low, mem_high)
 
-    def getCombinedRawAnalogueSquaredData(self, dataParser, binsSqd, device, memory): 
+    def getCombinedRawAnalogueSquaredData(self, dataParser:'licel_data.DataParser',
+                                          binsSqd: int, device: int, memory: str) -> numpy.ndarray[Any, numpy.dtype[numpy.uint64]]: 
         """
         get the combined raw analogue squared data 
 
@@ -512,7 +547,10 @@ class TransientRecorder(TCP_util.util):
 
         return dataParser._combineAnalogSquaredData(mem_low, mem_high, mem_extra)
 
-    def getRawPhotonCountingData(self, TRType, dataParser, bins, shots, device, memory):
+    def getRawPhotonCountingData(self, TRType:dict[str, int | str |float],
+                                 dataParser:'licel_data.DataParser', bins: int, 
+                                 shots: int, device: int, 
+                                 memory: str) -> numpy.ndarray[Any, numpy.dtype[numpy.uint32]]:
 
         """
         get the raw photon data set. 
@@ -554,7 +592,9 @@ class TransientRecorder(TCP_util.util):
             mem_low   = numpy.frombuffer(mem_low_buffer,numpy.uint16)
             return dataParser._convert_Photoncounting(mem_low, PUREPHOTON)
 
-    def getRawPhotonCountingSquaredData(self, dataParser, binsSqd, device, memory):
+    def getRawPhotonCountingSquaredData(self, dataParser:'licel_data.DataParser',
+                                        binsSqd: int, device: int,
+                                        memory: str) -> numpy.ndarray[Any, numpy.dtype[numpy.uint64]]:
         """
         get the photon counting raw  squared data 
 
@@ -579,8 +619,362 @@ class TransientRecorder(TCP_util.util):
         mem_high  = numpy.frombuffer(mem_high_buffer,numpy.uint16)
 
         return dataParser._combine_Photon_Squared_Data(mem_low, mem_high)
+    
+    def MPushStop(self) -> str: 
+        """ 
+        stops the push/mpush mode. Internally it sends a ``SLAVE`` command.
+        for more information: https://licel.com/manuals/ethernet_pmt_tr.pdf#TCPIP.SLAVE
+        :raises Exception: if the stop command is not executed.
+
+        :returns: Controller response.
+        :rtype: str 
+        """
+        return self.setSlaveMode()
+
+
+    def selectTR(self, numTR : int) -> str: 
+        """
+        select transient recorder to communicate with. 
+
+        :param numTR: transient recorder adresse between 0 .. 15
+        :type numTR: int 
+
+        :returns: ``select numTR executed`` or 
+            ``Device ID ``numTR` is currently not supported``
+
+        :rtype: str
+        """
+        if ( not isinstance(numTR, int) ):
+            raise ValueError ("selectTR argument must be an integer \r\n" "passed argument is :"+ type(numTR))
+        cmd = ("SELECT " +str(numTR))
+        return  self._writeReadAndVerify(cmd , "executed")
+    
+    def listInstalledTr(self) -> dict[str, str]:
+        '''
+        attempts to communicate with transient recorder with adresse 0 .. 15 and lists 
+        all installed transient recorders.
+
+        :raises RuntimeError: if no transient recorder is detected 
+
+        :returns: dictionary containing information about installed Transient recorder
+        :rtype: {'TR0': '(not)installed', 'TR1': '(not)installed', 'TR2': '(not)installed',
+                 'TR3': '(not)installed', ....................... 'TR15': '(not)installed'}
+        
+        '''
+
+        self.selectTR(-1)
+        for i in range (0,16): 
+            self.selectTR(i)
+            self.writeCommand("STAT?")
+            resp = self.readResponse()
+            key = "TR" + str(i)
+            if (resp.find("Shots") >= 0):
+                self.__MaxTrNumber += 1
+                self.__TrDict[key] = "installed"
+            else:
+                self.__TrDict[key] = "not installed"
+        if self.__MaxTrNumber > 0 :
+            return self.__TrDict
+        else:
+            raise RuntimeError ("no TR detected")
+            return 
+        
+
+    def multiplyBinwidth(self, multiplier: int) -> str: 
+        '''
+        Multiply the the transient recorder base binwidth by ``multiplier``. 
+        This will reduce the range resolution by actually reducing the sampling rate of 
+        the transient recorder before the data summation. 
+        multiplier possible value are between  0, 1, 2 ,4, 8, 16, 32, 64, 128. 
+
+        :param deviceNumber: transient recorder adresse
+        :type deviceNumber: int 
+
+        :param multiplier: possible value are   0, 1, 2 ,4, 8, 16, 32, 64, 128.
+        :param int:  
+        '''
+
+        if (not self._isPowerofTwo(multiplier)):
+            raise ValueError ('\r\n multiplier must be 0 or a power of 2, possible value are 0, 1, 2 ,4, 8, 16, 32, 64, 128. Passed argument is :'+ str(multiplier))
+        resp = self._setFreqDivider(multiplier)
+        return resp 
+    
+    def getActualBinwidth(self, deviceNumber: int, hardwareInfos) -> float:
+        self.selectTR(deviceNumber)
+        freqDividerExponent = int (self._getFreqDivider().split(" ")[1])
+        actualBinwidth = hardwareInfos[deviceNumber]['binWidth'] * (1<<freqDividerExponent)
+        self.selectTR(-1)
+        return actualBinwidth
+    
+    def configureHardware(self, Config: 'licel_Config.Config') -> None:
+        """
+        Configure the active transient recorders hardware as specified in config. \r\n
+            currently configuers following parameters :
+            - Threshold mode \r\n
+            - Pretrigger \r\n
+            - Discriminator level \r\n
+            - Frequency divider \r\n
+            - Input range \r\n
+            - Max shots \r\n
+            - Block global trigger. 
+
+        :param Config: holds the acquisition configuration information
+        :type Config: Licel.licel_acq.Config()
+        
+        :returns: None
+        """
+        #TODO - add more configuration to the hardware
+
+        if not Config.TrConfigs :
+            raise RuntimeError("Config file does not contain any transient recorder configuration.")
+        for trConfig in Config.TrConfigs:
+            transientIsActive = False
+            for key in  trConfig.analogueEnabled:
+                if (trConfig.analogueEnabled[key] == True  
+                    or trConfig.pcEnabled[key]    == True) :
+                        transientIsActive = True
+            if transientIsActive == True :
+                print(self.selectTR(trConfig.nTransientRecorder))
+                print(self.setSlaveMode())
+                print(self.clearMemory())
+                print(self.setDiscriminatorLevel(trConfig.discriminator))
+                print(self.disablePretrigger() if trConfig.pretrigger == 0 else self.enablePretrigger())
+                if trConfig.threshold != 0 :
+                    print(self.setThresholdMode("ON"))
+                if trConfig.threshold == 0 :
+                    print(self.setThresholdMode("OFF"))
+                if trConfig.shotLimit != 0 :
+                    print(self.setMaxShots(trConfig.shotLimit))
+                nRange_str = "-"+ str(trConfig.nRange) +"mV"
+                print(self.setInputRange(nRange_str))
+                print(self.multiplyBinwidth(trConfig.freqDivider))
+                self.__configureBlockGlobalTrigger__(trConfig)
+
+        self.selectTR(-1)
+        self._getTrHardwareInfo(Config)
+
+        return 
+    
+        
+    def __configureBlockGlobalTrigger__(self, trConfig: 'licel_Config.TrConfig') -> None:
+        print(self.unblockRackTrigger())
+        if trConfig.blockedTrig["A"]:
+            print(self.blockRackTrigger("A"))
+        if trConfig.blockedTrig["B"]:
+            print(self.blockRackTrigger("B"))
+        if trConfig.blockedTrig["C"]:
+            print(self.blockRackTrigger("C"))
+        if trConfig.blockedTrig["D"]:
+            print(self.blockRackTrigger("D"))
+
+    def _getTrHardwareInfo(self, Config: 'licel_Config.Config') -> None:
+        '''
+        get the transient hardware description from each active transient recorder in the 
+        configuration.
+        Writes the Hardware Information internally in `self.hardwareInfos`  
+
+        :param Config: system configuration
+        :type Config: Licel.licel_acq.Config()
+        
+        :returns: None
+        '''
+
+        for trConfig in Config.TrConfigs:
+            transientIsActive = False
+            for key in  trConfig.analogueEnabled:
+                if (trConfig.analogueEnabled[key] == True  
+                    or trConfig.pcEnabled[key]    == True) :
+                        transientIsActive = True
+            if transientIsActive == True :
+                self.selectTR(trConfig.nTransientRecorder)
+                self.hardwareInfos[trConfig.nTransientRecorder] = self.TRtype()
+        self.selectTR(-1)
+        return 
+    
+    def MPushStartFromConfig(self, shots: int, Config: 'licel_Config.Config') -> str:
+        '''
+        Starts the MPUSH acquisition mode from configuration.
+        Internally this function will: 
+        
+            - Get the timestamp endianness \r\n
+            - Get hardware information for each active transient recorder in Config. \r\n
+            - Calculate the expected number of bytes to be received. \r\n
+            - Generate the MPUSH command depending on the Config.   \r\n
+            - Sends the generated MPUSH command to the controller. \r\n
+        
+        :param shots: number of shots to be acquired 
+        :type shots: int
+
+        :param Config: system configuration
+        :type Config: Licel.licel_acq.Config()
+
+        :returns: ethernet controller response 
+        :rtype: str 
+        '''
+        #TODO - is it a good idea to hide Config.setDatasetsCount() inside 
+        #MPushStartFromConfig()
+        
+        self._getTimestampEndianness()
+        self._setDatasetsCount(shots, Config)
+        command = self._generateMPUSHCommandFromConfig(shots, Config) 
+        print(command)
+        return  self._writeReadAndVerify(command, "executed")
+    
+    def _generateMPUSHCommandFromConfig(self, shots: int, Config: 'licel_Config.Config') -> str: 
+        """
+        generate Mpush command from the Configuration ``Config``
+
+        :param shots: number of shots to be acquired. 
+        :type shots: int
+
+        :param Config: system configuration
+        :type Config: Licel.licel_acq.Config()
+
+        :returns: Mpush command
+        :rtype: str 
+        """
+        command = "MPUSH " + str(shots)
+        for trConfig in Config.TrConfigs: 
+            for key in trConfig.analogueEnabled: 
+                if trConfig.analogueEnabled[key] == True: 
+                    tmpCommandLSW = (' {device:2d} {numberToread} LSW {memory}'
+                        .format (device = trConfig.nTransientRecorder,
+                                numberToread = trConfig.analogueBins[key],
+                                memory = key)) 
+                    tmpCommandMSW = (' {device:2d} {numberToread} MSW {memory}'
+                        .format (device = trConfig.nTransientRecorder,
+                                numberToread = trConfig.analogueBins[key],
+                                memory = key)) 
+                    tmpCommandPHM = ""
+                    if (shots > 32764  
+                    and self.hardwareInfos[trConfig.nTransientRecorder]['ADC Bits'] == 16 ):
+
+                        tmpCommandPHM = (' {device:2d} {numberToread} PHM {memory}'
+                        .format (device = trConfig.nTransientRecorder,
+                                numberToread = trConfig.analogueBins[key],
+                                memory = key)) 
+                        
+                    command += tmpCommandLSW + tmpCommandMSW + tmpCommandPHM
+
+            for key in trConfig.pcEnabled: 
+                if trConfig.pcEnabled[key] == True: 
+                    TRnum = trConfig.nTransientRecorder
+                    tmpCommandPC = (' {device:2d} {numberToread} PC {memory}'
+                                    .format (device = trConfig.nTransientRecorder,
+                                            numberToread = trConfig.pcBins[key],
+                                            memory = key))
+                    
+                    tmpCommandPHM = ""
+                    if ((shots > 4096 and self.hardwareInfos[TRnum]['PC Bits'] == 4)
+                        or (shots > 1024 and self.hardwareInfos[TRnum]['PC Bits'] == 6)
+                        or (shots > 256 and self.hardwareInfos[TRnum]['PC Bits'] == 8)): 
+                        
+                        tmpCommandPHM = (' {device:2d} {numberToread} PHM {memory}'
+                        .format (device = trConfig.nTransientRecorder,
+                                numberToread = trConfig.pcBins[key],
+                                memory = key)) 
+                    command += tmpCommandPC + tmpCommandPHM
+        return command   
+    
+    def _setDatasetsCount(self, shots: int, Config: 'licel_Config.Config') -> None:
+        """ 
+        we parse the Configuration and calculate how many (raw)dataset 
+        and the total number of bins we need to acquire. The number of shots and transient
+        hardware information influences the number of raw data bytes we need to acquire. 
+        this function update the value of ``exceptedByte`` and ``BufferSize`` in self.
+
+        :param shots: number of shots the user wishes to acquire
+        :type shots : int
+
+        :returns: None
+        """
+        numDataSets = 0
+        for myTrConfig in Config.TrConfigs: 
+            for key in myTrConfig.analogueEnabled : 
+                if myTrConfig.analogueEnabled[key] == True: 
+                    Trnum = myTrConfig.nTransientRecorder
+                    numDataSets += 1 #analogue data to be written to file. 
+                    if ((shots > 4096) and (self.hardwareInfos[Trnum]['ADC Bits'] == 16)): 
+                        #analogue data are formed from MSW LSW and PHM.  
+                        self.__rawDataSets__ += 3 
+                        self.totalnumBins += 3*myTrConfig.analogueBins[key]
+                    else:
+                        #analogue data are formed from MSW and LSW, 
+                        self.__rawDataSets__ += 2 
+                        self.totalnumBins += 2*myTrConfig.analogueBins[key]
+                    
+            for key in myTrConfig.pcEnabled: 
+                if myTrConfig.pcEnabled[key] == True: 
+                    Trnum = myTrConfig.nTransientRecorder
+                    numDataSets += 1 #PC data to be written to file. 
+                    if ((shots > 4096 and self.hardwareInfos[Trnum]['PC Bits'] == 4)
+                        or (shots > 1024 and self.hardwareInfos[Trnum]['PC Bits'] == 6)
+                        or (shots > 256 and self.hardwareInfos[Trnum]['PC Bits'] == 8)): 
+                        #PC data are formed from PC and PHM. 
+                        self.__rawDataSets__ += 2
+                        self.totalnumBins += 2*myTrConfig.pcBins[key]
+                    else:
+                        #PC data are formed from PC only.
+                        self.__rawDataSets__ += 1
+                        self.totalnumBins += myTrConfig.pcBins[key]
+            
+            Config.numDataSets = numDataSets
+            self.exceptedByte = (2*(self.totalnumBins + self.__rawDataSets__ + HEADEROFFSET))
+            self.BufferSize = self.exceptedByte + NEXT_DELIMTER_OFFSET 
 
     
+    def recvPushData(self) -> None:
+        """
+        read push/mpush data from the ethernet controller push port. \r\n
+        used for reading push/mpush from transient recorder. \r\n
+        fills ``self.pushBuffer``. 
+        If after a certain time not data is recived, checks if counterpart is still 
+        reachable by sending ``*IDN?`` on the command socket. 
 
 
-
+        :raises: ConnectionResetError if the counter part closes the connection
+        :raises: socketTimeout if counter part is unreachable
+        :raises: ConnectionError if error is written.   
+        """
+        readSocket  = [self.PushSocket]
+        writeSocket = [self.commandSocket]
+        ErrorSocket = [self.commandSocket, self.PushSocket]
+        while (len(self.pushBuffer) < self.BufferSize):
+            (readableSocket,
+             writableSocket,
+             error_sockets) = select.select(readSocket, [], ErrorSocket, 5)
+            if (readableSocket): 
+                # Push socket is readable 
+                # read from socket 
+                packet = self.PushSocket.recv(self.BufferSize)
+                if packet:
+                    self.pushBuffer.extend(packet)
+                # if socket is readable and packet is empty
+                # this means we received a FIN from our counter part
+                else : 
+                    raise ConnectionResetError ("\nPush connection was closed by the remote host.")
+            else:
+                (readableSocket,
+                writableSocket,
+                error_sockets) = select.select([], writeSocket, ErrorSocket, 2)    
+                if(writableSocket):
+                    # command socket is writable 
+                    # get id to check if connection is still alive.
+                    # if connection is broken a timeout will be raised
+                    self.getID() 
+                if(error_sockets):
+                    raise ConnectionError
+        return 
+    
+    def getID(self) -> str:
+        ''' Get the identification string from the controller 
+        
+        :returns: ethernet controller identification number
+        :rtype: str  
+        '''    
+        return  self._writeReadAndVerify("*IDN?", " ")
+    
+    def _getTimestampEndianness(self) -> None:
+        Idn = self.getID()
+        if (Idn.find("ColdFireEthernet") != -1) : 
+            self.bigEndianTimeStamp = True 

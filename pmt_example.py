@@ -1,6 +1,10 @@
-from Licel import  licel_tcpip, photomultiplier
+'''
+Copyright ©: Licel GmbH
+
+python3 pmt_example.py --ip <ip> --port <port>  --PMT <pmt number> --voltage <Voltage in Volt>  
+'''
+from Licel import  licel_tcpip,  photomultiplier
 import argparse
-import time
 
 
 

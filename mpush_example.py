@@ -40,15 +40,15 @@ ACQUISTION_CYCLES = myArguments.acq
 ACQUISPERFILE = myArguments.acquis_per_file 
 LOGPUSHDATA = myArguments.log 
 
-def singleAcquistionCycle(ethernetController, dataParser,
-                           ConfigInfo):
+def singleAcquistionCycle(ethernetController: 'licel_tcpip.EthernetController',
+                          dataParser: 'licel_data.DataParser',
+                          ConfigInfo: 'licel_Config.Config'):
     
     startTime =  datetime.now()
-    ethernetController.recvPushData() 
+    ethernetController.Tr.recvPushData() 
     stopTime =  datetime.now()
 
     if (LOGPUSHDATA): 
-        controllerTimeMs = ethernetController.getMilliSecs()
         Idn = ethernetController.getID()
         dataParser.pushDataLog(logFilePath,
                                 ethernetController,
@@ -67,7 +67,7 @@ def singleAcquistionCycle(ethernetController, dataParser,
         dataParser.savePushDataToLicelFileFormat(dataSets,
                                       ConfigInfo,
                                       startTime,stopTime,
-                                      ethernetController.hardwareInfos,
+                                      ethernetController.Tr.hardwareInfos,
                                       time_stamp,
                                       analogue_shots, 
                                       pc_shots,
@@ -88,9 +88,9 @@ def main():
     ethernetController.openConnection()
     ethernetController.openPushConnection()
 
-    print(ethernetController.listInstalledTr())   
-    ethernetController.configureHardware(ConfigInfo)
-    print(ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo))
+    print(ethernetController.Tr.listInstalledTr())   
+    ethernetController.Tr.configureHardware(ConfigInfo)
+    print(ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo))
     startTime =  datetime.now()
     print("*** Started mpush acqusition at:",startTime, " *** \r\n")
 
@@ -103,13 +103,13 @@ def main():
             cycle_count = cycle_count - 1
             ethernetController.reconnection(ConfigInfo)
             print("*** Restarting MPUSH *** ")
-            print(ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo))
+            print(ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo))
         except KeyboardInterrupt: 
             print("User interrupted program by pressing Ctrl-C.")
             break
 
 
-    ethernetController.MPushStop()
+    ethernetController.Tr.MPushStop()
     ethernetController.shutdownConnection()
     ethernetController.shutdownPushConnection()
     stopTime =  datetime.now()

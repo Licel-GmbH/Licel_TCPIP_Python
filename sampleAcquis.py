@@ -74,9 +74,9 @@ def main():
     ethernetController.openConnection()
     print(ethernetController.getID())
     print(ethernetController.getCapabilities())
-    installedTr = ethernetController.listInstalledTr()
+    installedTr = ethernetController.Tr.listInstalledTr()
     print(installedTr)
-    ethernetController.selectTR(0)
+    ethernetController.Tr.selectTR(0)
     TRType = ethernetController.Tr.TRtype()
     print("TR Info : ", TRType, " \r\n")
 
