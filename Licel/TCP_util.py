@@ -16,8 +16,8 @@ class util:
         self.PushSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.killsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.commandSocket.settimeout(2) # 1sec timeout 
-        self.PushSocket.settimeout(2)
+        self.commandSocket.settimeout(5) # 1sec timeout 
+        self.PushSocket.settimeout(5)
         self.sockFile=self.commandSocket.makefile('rw')
         self.pushSockFile=self.PushSocket.makefile('rw')
         self.ip = ip
