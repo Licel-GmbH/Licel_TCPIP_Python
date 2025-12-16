@@ -1,19 +1,22 @@
 from Licel import TCP_util
+from typing import TYPE_CHECKING
 import socket 
-import time 
+
+if TYPE_CHECKING:
+    from Licel import licel_tcpip
 
 class powermeter(TCP_util.util):
 
     run_PushThreads = False
     
-    def __init__(self, ethernetController) -> None:
+    def __init__(self, ethernetController: 'licel_tcpip.EthernetController') -> None:
         
         self.commandSocket  = ethernetController.commandSocket
         self.PushSocket     = ethernetController.PushSocket
         self.sockFile       = ethernetController.sockFile
         self.pushSockFile   = ethernetController.pushSockFile
 
-    def selectChannel(self, channel : int):
+    def selectChannel(self, channel : int) -> str:
         """
         Selects the ADC channel for the data acquisition.
          
@@ -24,7 +27,7 @@ class powermeter(TCP_util.util):
         return self._writeReadAndVerify(command, "executed")
 
 
-    def Start(self):
+    def Start(self) -> str:
         """
         Activates the data acquisition and data transmission over the push socket.
 
@@ -33,14 +36,8 @@ class powermeter(TCP_util.util):
         """
         return self._writeReadAndVerify("POW START", "executed")
     
-    def _writeReadAndVerify(self, command, verifystring):
-        self.writeCommand(command)
-        resp= self.readResponse()
-        if resp.find(verifystring) == -1 :
-            raise RuntimeError(resp)
-        return resp
 
-    def Stop(self):    
+    def Stop(self) -> str:    
         """
         Deactivates the data acquisition and stops the data transmission
         over the push socket
@@ -50,8 +47,7 @@ class powermeter(TCP_util.util):
         """
         return self._writeReadAndVerify("POW STOP", "executed")
 
-    
-    def getTrace(self):
+    def getTrace(self) -> list[int]:
         """
         Starts a single pulse acquisition.  \n 
         The single trace is transmitted over the command socket. \n
@@ -64,12 +60,11 @@ class powermeter(TCP_util.util):
         resp = self._writeReadAndVerify("POW TRACE", " ")
         resp = resp.replace('\r', '').replace('\n', '')
         splittedResp = resp.split(" ")
-        numberOfPointes = splittedResp[0]
         dataPoint = [int(point) for point in  splittedResp[1:]]
         return  dataPoint
 
 
-    def _readPushLine(self):
+    def _readPushLine(self) -> str:
         """
         Read push data from the ethernet controller push port. \r\n
         Used for reading push from the powermeter. \r\n
@@ -104,7 +99,7 @@ class powermeter(TCP_util.util):
         except socket.timeout: 
             raise socket.timeout( "response timeout")
     
-    def _parsePowermeterPushResponse(self, pushResponse) -> list[str , str]:
+    def _parsePowermeterPushResponse(self, pushResponse:str) -> tuple[str , str, str]:
         """
         parse powermeter single line push response 
 
@@ -122,9 +117,9 @@ class powermeter(TCP_util.util):
             triggerNumber = resp_splitted[2].rstrip()   
             return timestamp, pulseAmplitude,  triggerNumber
         else : 
-            return timestamp, pulseAmplitude, -1
+            return timestamp, pulseAmplitude, "-1"
 
-    def getPowermeterPushData(self):
+    def getPowermeterPushData(self) -> tuple[str , str, str]:
         """
         get powermeter push response
 
@@ -136,7 +131,7 @@ class powermeter(TCP_util.util):
         timestamp, pulseAmplitude, trigger_num = self._parsePowermeterPushResponse(pushDataLine)
         return timestamp, pulseAmplitude, trigger_num
 
-    def startInternalTrigger(self):
+    def startInternalTrigger(self) -> str:
         """
         Activate trigger simulation without waiting for an external trigger.
         
@@ -147,7 +142,7 @@ class powermeter(TCP_util.util):
         """
         return self._writeReadAndVerify("POWTIMERSIM ON", "executed")  
     
-    def stopInternalTrigger(self):
+    def stopInternalTrigger(self) -> str:
         """
         Deactivate trigger simulation without waiting for an external trigger.
     
@@ -158,7 +153,7 @@ class powermeter(TCP_util.util):
         """
         return self._writeReadAndVerify("POWTIMERSIM OFF", "executed")
 
-    def getNumberOfTrigger(self):
+    def getNumberOfTrigger(self) -> str:
         """
         get number of supported number of triggers 
 

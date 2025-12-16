@@ -1,33 +1,32 @@
 from dataclasses import dataclass, field
 import configparser
-import os
-    
+
 
 @dataclass()
 class MeasureInfo:
     ''' 
     this class holds global configuration Info. 
     '''
-    szLocation      : str   = field(default =None) #:measurement site 
-    nAltitude       : int   = field(default =None) #:altitude above sea level in meters
-    dLongitude      : float = field(default =None) #:longitude in degrees
-    dLatitude       : float = field(default =None) #:lattitude in degrees
-    Zenith          : float = field(default =None) #:Zenith in in degrees 
-    Azimuth         : float = field(default =None) #:Azimuth in in degrees 
+    szLocation      : str  | None = field(default =None) #:measurement site 
+    nAltitude       : int  | None = field(default =None) #:altitude above sea level in meters
+    dLongitude      : float| None = field(default =None) #:longitude in degrees
+    dLatitude       : float| None = field(default =None) #:lattitude in degrees
+    Zenith          : float| None = field(default =None) #:Zenith in in degrees 
+    Azimuth         : float| None = field(default =None) #:Azimuth in in degrees 
 
-    cFirstLetter    : str   = field(default =None) #:first letter of the data file
-    szOutPath       : str   = field(default =None) #:output directory for data 
-    nDataSetNumber  : int   = field(default =None) #:number of datasets into a single file
+    cFirstLetter    : str  | None = field(default =None) #:first letter of the data file
+    szOutPath       : str  | None = field(default =None) #:output directory for data 
+    nDataSetNumber  : int  | None = field(default =None) #:number of datasets into a single file
     
-    nMaxShotsL0     : int   = field(default =None)  #:max num of shots for Laser0 
-    nMaxShotsL1     : int   = field(default =None)  #:max num of shots for Laser1 
-    nMaxShotsL2     : int   = field(default =None)  #:max num of shots for Laser2 
-    nMaxShotsL3     : int   = field(default =None)  #:max num of shots for Laser3
+    nMaxShotsL0     : int | None = field(default =None)  #:max num of shots for Laser0 
+    nMaxShotsL1     : int | None = field(default =None)  #:max num of shots for Laser1 
+    nMaxShotsL2     : int | None = field(default =None)  #:max num of shots for Laser2 
+    nMaxShotsL3     : int | None = field(default =None)  #:max num of shots for Laser3
     
-    repRateL0       : int   = field(default =None) #:repetition rate of Laser0 
-    repRateL1       : int   = field(default =None) #:repetition rate of Laser1 
-    repRateL2       : int   = field(default =None) #:repetition rate of Laser2 
-    repRateL3       : int   = field(default =None) #:repetition rate of Laser3 
+    repRateL0       : int | None = field(default =None) #:repetition rate of Laser0 
+    repRateL1       : int | None = field(default =None) #:repetition rate of Laser1 
+    repRateL2       : int | None = field(default =None) #:repetition rate of Laser2 
+    repRateL3       : int | None = field(default =None) #:repetition rate of Laser3 
 
     #: dictionary holding global information for laser0. 
     #: dict = {wavelength1 : polarization1, wavelength2: polarizaton2}
@@ -48,21 +47,21 @@ class MeasureInfo:
 @dataclass()
 class TrConfig: 
     #: transient recorder address 
-    nTransientRecorder:   int = field(default =None) 
+    nTransientRecorder:   int  = field(default =None) 
     #: analog input range 0 for 500mV, 1 for 100mV, 2 for 20mV                        
-    nRange            :   int = field(default =None) 
+    nRange            :   int | None = field(default =None) 
     #: Discriminator level between 0 and 63              
-    discriminator     :   int   = field(default =None) 
+    discriminator     :   int | None = field(default =None) 
     #: shot limit for the Transient recorder, arbitrary number between 2 and 64K. 
-    shotLimit         :   int   = field(default =None)
+    shotLimit         :   int | None = field(default =None)
     #: 1 for pretrigger enabled, 0 for pretrigger disabled 
-    pretrigger        :   int   = field(default =None) 
+    pretrigger        :   int | None = field(default =None) 
     #: Set the frequency divider, it changes the sampling rate before the summation
     #: possible values are 0-7
-    freqDivider       :   int   = field(default =None)
+    freqDivider       :   int | None = field(default =None)
     #: Sets the damping state to either on or off. 1 to turn on the Damping mode. 
     #: 0 to turn off the Damping mode.
-    threshold         :   int   = field(default =None)
+    threshold         :   int | None = field(default =None)
 
     #: holds the laser polarization for the analogue memory 
     #: none, vertical, horizontal, right circular, left circular 0|1|2|3|4   
@@ -142,17 +141,17 @@ class TrConfig:
 
 class Config():
     #: .ini File path. 
-    acquisIniConfigPath  = " "
+    acquisIniConfigPath: str  = " "
     #: global Measurement info configuration  
     measurementInfo = MeasureInfo()
     #: List holding the configuration for each transient recorder
-    TrConfigs : [TrConfig] = [ ]
+    TrConfigs : list[TrConfig] = [ ]
     #: holds the total number of datasets to be read, analogue and photon counting 
     numDataSets = 0 
     #: parser object to parse the .ini configuration file 
     parser = configparser.ConfigParser()
 
-    def __init__(self, acquisIniPath = None ):
+    def __init__(self, acquisIniPath: str ) -> None:
         self.acquisIniConfigPath = acquisIniPath 
 
     def readConfig(self):
@@ -274,7 +273,7 @@ class Config():
                 self.TrConfigs.append(tmpDataset)
                 del tmpDataset
         
-    def __getActiveAnalogueMem__(self,tmpDataset,section,key):
+    def __getActiveAnalogueMem__(self,tmpDataset: TrConfig, section:str ,key:str) -> None:
         ''' 
         get active memory for analogue data. 
         we will acquire analogue  data set for the active memory 
@@ -288,7 +287,7 @@ class Config():
         if (key == "analogd"): 
             tmpDataset.analogueEnabled["D"] = self.parser.getboolean(section,key)
 
-    def __getBlockedTrigger__(self,tmpDataset,section,key):
+    def __getBlockedTrigger__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' 
         get blocked global trigger for memory each memory.
         '''
@@ -301,7 +300,7 @@ class Config():
         if (key == "blocktrigd"): 
             tmpDataset.blockedTrig["D"] = self.parser.getboolean(section,key)
 
-    def __getActivePCMem__(self,tmpDataset,section,key):
+    def __getActivePCMem__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get active memory for photon counting data. 
             we will acquire photon counting data set for the active memory 
         '''
@@ -314,7 +313,7 @@ class Config():
         if (key == "pc d"): 
             tmpDataset.pcEnabled["D"] = self.parser.getboolean(section,key)
     
-    def __getAnaloguePolarization__(self,tmpDataset,section,key):
+    def __getAnaloguePolarization__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get the laser polarisation assigned to each analogue memory '''
 
         if (key == "polarisationa"):
@@ -326,7 +325,7 @@ class Config():
         if (key == "polarisationd"):
             tmpDataset.analoguePolarisation["D"] = self.parser.getint(section,key)
     
-    def __getPcPolarization__(self,tmpDataset,section,key):
+    def __getPcPolarization__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get the laser polarisation assigned to each photoncounting memory '''
         if (key == "polarisationapc"):
             tmpDataset.pcPolarisation["A"] = self.parser.getint(section,key)
@@ -337,7 +336,7 @@ class Config():
         if (key == "polarisationdpc"):
             tmpDataset.pcPolarisation["D"] = self.parser.getint(section,key)
 
-    def __getAnalogueBins__(self,tmpDataset,section,key): 
+    def __getAnalogueBins__(self,tmpDataset: TrConfig,section:str,key:str) -> None: 
         ''' get the number of bins to acquire for each analogue memory '''
         if (key == "a-binsa"): 
             tmpDataset.analogueBins["A"] = self.parser.getint(section,key)
@@ -348,7 +347,7 @@ class Config():
         if (key == "a-binsd"): 
             tmpDataset.analogueBins["D"] = self.parser.getint(section,key)
     
-    def __getPcBins__(self,tmpDataset,section,key):
+    def __getPcBins__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get the number of bins to acquire for each pc memory '''
         if (key == "p-binsa"): 
             tmpDataset.pcBins["A"] = self.parser.getint(section,key)
@@ -359,7 +358,7 @@ class Config():
         if (key == "p-binsd"): 
             tmpDataset.pcBins["D"] = self.parser.getint(section,key)
 
-    def __getAnalogueWavelength__(self,tmpDataset,section,key):
+    def __getAnalogueWavelength__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get laser wavelength for each analogue memory '''
         if (key == "wavelengtha"): 
             tmpDataset.analogueWavelength["A"] = float(self.parser[section][key].replace(",","."))
@@ -370,7 +369,7 @@ class Config():
         if (key == "wavelengthd"): 
             tmpDataset.analogueWavelength["D"] = float(self.parser[section][key].replace(",","."))
     
-    def __getPcWavelength__(self,tmpDataset,section,key):
+    def __getPcWavelength__(self,tmpDataset: TrConfig,section:str,key:str) -> None:
         ''' get laser wavelength for each photoncounting memory '''
         if (key == "wavelengthapc"): 
             tmpDataset.pcWavelength["A"] = float(self.parser[section][key].replace(",","."))
@@ -381,7 +380,7 @@ class Config():
         if (key == "wavelengthdpc"): 
             tmpDataset.pcWavelength["D"] = float(self.parser[section][key].replace(",","."))
 
-    def __getLaserAssignment__(self, tmpDataset, section, key):  
+    def __getLaserAssignment__(self, tmpDataset: TrConfig, section: str, key: str) -> None:  
         ''' get the laser assigned to each memory '''
         if (key == "lasera"): 
             tmpDataset.laserAssignment["A"] = self.parser.getint(section,key)
@@ -392,7 +391,7 @@ class Config():
         if (key == "laserd"): 
             tmpDataset.laserAssignment["D"] = self.parser.getint(section,key)
 
-    def __getPMVoltageAnalogue__(self, tmpDataset, section, key):
+    def __getPMVoltageAnalogue__(self, tmpDataset: TrConfig, section: str, key: str) -> None:
         ''' get PMT voltage for analogue memory'''
         if (key == "pm"): 
             tmpDataset.pmVoltageAnalogue["A"] = float(self.parser[section][key].replace(",","."))
@@ -403,7 +402,7 @@ class Config():
         if (key == "pm4"): 
             tmpDataset.pmVoltageAnalogue["D"] = float(self.parser[section][key].replace(",","."))
 
-    def __getPMVoltagePC__(self, tmpDataset, section, key):
+    def __getPMVoltagePC__(self, tmpDataset: TrConfig, section: str, key: str) -> None  :
         ''' get PMT voltage for pc memory'''
         if (key == "pm1pc"): 
             tmpDataset.pmVoltagePC["A"] = float(self.parser[section][key].replace(",","."))
@@ -414,7 +413,7 @@ class Config():
         if (key == "pm4pc"): 
             tmpDataset.pmVoltagePC["D"] = float(self.parser[section][key].replace(",","."))
 
-    def __convertRangeToHumanReadable__(self,range): 
+    def __convertRangeToHumanReadable__(self,range: int) -> int: 
         ''' convert range to human readable number'''
         if range == 0:
             return 500
@@ -425,22 +424,22 @@ class Config():
         else :
             raise Exception('Range must be : "0"-> 500mV, "1"-> 100mV, "2"-> 20mV \r\n')
 
-    def __getShotLimit__(self, tmpDataset, section, key):
+    def __getShotLimit__(self, tmpDataset: TrConfig, section: str, key: str) -> None:
         ''' get shot limit from .ini file '''
         if (key == "shotlimit"): 
             tmpDataset.shotLimit = self.parser.getint(section,key)
     
-    def __getPretrigger__(self, tmpDataset, section, key):
+    def __getPretrigger__(self, tmpDataset: TrConfig, section: str, key: str) -> None:
         ''' get if pretrigger enabled from .ini file '''
         if (key == "pretrigger"): 
             tmpDataset.pretrigger = self.parser.getint(section,key)
     
-    def __getfreqDiv__(self, tmpDataset, section, key):
+    def __getfreqDiv__(self, tmpDataset: TrConfig, section: str, key: str) -> None:
         ''' get frequency divider from .ini file '''
         if (key == "freqdivider"): 
             tmpDataset.freqDivider = self.parser.getint(section,key)
     
-    def __getThreshold__(self, tmpDataset, section, key):
+    def __getThreshold__(self, tmpDataset: TrConfig, section: str, key: str) -> None:
         ''' get threshold from .ini file'''
         if (key == "threshold"): 
             tmpDataset.threshold = self.parser.getint(section,key)

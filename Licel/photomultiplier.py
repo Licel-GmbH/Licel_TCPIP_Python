@@ -1,10 +1,14 @@
 from Licel import TCP_util
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from Licel import licel_tcpip
 
 class  photomultiplier(TCP_util.util):
 
     run_PushThreads = False
     
-    def __init__(self, ethernetController) -> None:
+    def __init__(self, ethernetController: 'licel_tcpip.EthernetController') -> None:
         
         self.commandSocket = ethernetController.commandSocket 
         self.sockFile      = ethernetController.sockFile
@@ -46,7 +50,7 @@ class  photomultiplier(TCP_util.util):
         resp= self.readResponse()
         return resp
 
-    def isPMTinstalled(self, device):
+    def isPMTinstalled(self, device: int) -> bool:
         """
         verifies if the pmt is correctly installed. \n
         1. Set the high voltages PMTs ``device`` to 0 \n
@@ -59,7 +63,7 @@ class  photomultiplier(TCP_util.util):
         :returns: True when pmt corresponding to ``device`` is installed.   
         :rtype: bool
         """
-        resp = self.setHV(device,0)
+        self.setHV(device,0)
         voltage = self.getHV(device).split(" ")[1]
         try:
             if ((float (voltage) <360) and (float(voltage) >350)): 
@@ -70,14 +74,14 @@ class  photomultiplier(TCP_util.util):
             #returned response from getHV() PMT not available
             return False
         
-    def listInstalledPMT(self):
+    def listInstalledPMT(self) -> dict[int, str]:
         """
         verifies if all PMT's are correctly installed.
 
         :returns: dict holding information of which pmt is installed. 
         :rtype: dict{pmt number : Installed/Not installed}
         """
-        pmtDict = {}
+        pmtDict: dict[int, str] = {}
         for i in range(0,16):
             if self.isPMTinstalled(i):
                 pmtDict[i] = "Installed"

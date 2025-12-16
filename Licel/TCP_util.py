@@ -53,7 +53,7 @@ class util:
         except socket.timeout:
             raise socket.timeout ("Response timeout") 
         
-    def recvall(self, nBins) -> bytearray:
+    def recvall(self, nBins: int) -> bytearray | None:
         """
         receive the number of nBins specified \r\n
 
@@ -67,11 +67,12 @@ class util:
         while len(rawData) < 2*nBins:
             packet = self.commandSocket.recv(2*nBins - len(rawData))
             if not packet:
+                #connection closed by the counter part
                 return None
             rawData.extend(packet)
         return rawData
     
-    def _writeReadAndVerify(self, command, verifyString):
+    def _writeReadAndVerify(self, command:str, verifyString:str) -> str:
         """
         helper function to write on the command socket, it reads and verifies the response 
 

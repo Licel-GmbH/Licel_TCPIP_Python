@@ -4,11 +4,15 @@ Copyright ©: Licel Gmbh
 The data class holds method for (pre)processing the raw data,
 and saving data to Licel file format
 '''
-import numpy 
+import numpy
 from Licel import licel_tr_tcpip
-import math 
+import math
 from datetime import datetime
 import os
+
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from Licel import licel_tcpip, licel_Config
 
 MPUSH_SHOTNUM_OFFSET = 2 # represents 2 byte shot number needed to parser MPUSH response
 class DataParser:
@@ -50,7 +54,12 @@ class DataParser:
             temp += 2
         return 
     
-    def _combine_Analog_Datasets_16bit(self, uLSW, uMSW, uPHM):
+    def _combine_Analog_Datasets_16bit(self,
+                                       uLSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                       uMSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                       uPHM: numpy.ndarray[Any, numpy.dtype[numpy.uint16]]
+                                       ) -> tuple[numpy.ndarray[Any, numpy.dtype[numpy.uint32]],
+                                                  numpy.ndarray[Any, numpy.dtype[numpy.uint32]]]:
         """
         Converts the ``uLSW``, ``uMSW``, ``uPHM`` values into an integer array containing the
             summed up analog values. The first invalid element (due to the data transmission
@@ -89,7 +98,8 @@ class DataParser:
         #remove non valid first array element. 
         return numpy.delete(lAccumulated,0), iClipping.astype(numpy.uint32,casting='unsafe') 
     
-    def _combine_Analog_Datasets(self, uLSW, uMSW):
+    def _combine_Analog_Datasets(self, uLSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                 uMSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]]):
         '''
         Converts the ``uLSW``, ``uMSW`` values into an integer array containing the
         summed up analog values. The first invalid element (due to the data transmission
@@ -120,7 +130,9 @@ class DataParser:
         iClipping     = ((sMSW & 0x100) >> 8)
         return  numpy.delete(lAccumulated,0), iClipping.astype(numpy.uint32,casting='unsafe') 
 
-    def normalizeData(self,accumulatedData, iNumber, iShots):
+    def normalizeData(self,accumulatedData: numpy.ndarray[Any, numpy.dtype[numpy.uint32]],
+                      iNumber: int, 
+                      iShots: int) -> numpy.ndarray[Any, numpy.dtype[numpy.double]]:
         """
         Normalizes the accumulated Data with respect to the number of shots
         For more info read: https://licel.com/manuals/programmingManual.pdf#subsection.5.3
@@ -144,7 +156,9 @@ class DataParser:
         dNormalized = accumulatedData/shots
         return dNormalized
 
-    def scaleAnalogData(self,dNormalized, inputRange, TRHardwareInfo):
+    def scaleAnalogData(self,dNormalized:numpy.ndarray[Any, numpy.dtype[numpy.double]] ,
+                        inputRange: str,
+                        TRHardwareInfo: dict[str, int | str | float]) -> numpy.ndarray[Any, numpy.dtype[numpy.double]]:
         """
         Scales the normalized data with respect to the input range. 
         For more info read: https://licel.com/manuals/programmingManual.pdf#subsection.5.3
@@ -172,7 +186,10 @@ class DataParser:
             dScale = 20 / (1 << TRHardwareInfo['ADC Bits'])
         return  (dNormalized * dScale)
 
-    def _combineAnalogSquaredData(self,uSQLSW, uSQMSW, uSQHSW):
+    def _combineAnalogSquaredData(self,uSQLSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                  uSQMSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                  uSQHSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]]
+                                  ) -> numpy.ndarray[Any, numpy.dtype[numpy.uint64]]:
         """
         Converts the ``uSQLSW``, ``uSQMSW``, ``uSQHSW`` values into an integer array 
         containing the squared up analogue values. The first invalid element 
@@ -198,7 +215,9 @@ class DataParser:
             llSQAccumulated[i-1] = uSQLSW__[i] + (uSQMSW__[i] << 16 ) + (uSQHSW__[i] << 32)
         return llSQAccumulated.astype(numpy.uint64, casting='safe')
 
-    def getSquareRootBinary (self, combinedAnalogueRawData, combinedSqdData, iNumber, iShots):
+    def getSquareRootBinary (self, combinedAnalogueRawData: numpy.ndarray[Any, numpy.dtype[numpy.uint32]],
+                             combinedSqdData: numpy.ndarray[Any, numpy.dtype[numpy.uint64]],
+                             iNumber: int, iShots: int):
         """
         Convert the squared data to binary number for the standard deviation calculation. 
 
@@ -230,7 +249,7 @@ class DataParser:
             sqd_bin [i] = int(y)
         return sqd_bin
     
-    def normalizeSquaredData(self,sqd_bin,iShots):
+    def normalizeSquaredData(self,sqd_bin: numpy.ndarray[Any, numpy.dtype[numpy.uint32]],iShots: int):
         """
         Normalizes the squared Data with respect to the number of shot
 
@@ -247,7 +266,7 @@ class DataParser:
         dSampleStandardDev = sqd_bin / divider
         return dSampleStandardDev
 
-    def meanError(self,sampleStdDev, iShots):
+    def meanError(self,sampleStdDev: numpy.ndarray[Any, numpy.dtype[numpy.double]], iShots: int):
         """
         convert the sample standard deviation to the more relevant error of the mean value.
 
@@ -264,7 +283,8 @@ class DataParser:
         meanError = sampleStdDev / divider
         return meanError
 
-    def _convert_Photoncounting_Fullword(self, uPHO, uPHM):
+    def _convert_Photoncounting_Fullword(self, uPHO: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                         uPHM: numpy.ndarray[Any, numpy.dtype[numpy.uint16]]):
         """
         Converts the raw Photon counting data into an integer array containing the
         summed up photon counting values. The first invalid element (due to the data
@@ -292,7 +312,7 @@ class DataParser:
         photon_c = photon_c.astype(numpy.uint32,casting='unsafe')
         return numpy.delete(photon_c,0)
 
-    def _convert_Photoncounting(self, uPHO, iPurePhoton):
+    def _convert_Photoncounting(self, uPHO: numpy.ndarray[Any, numpy.dtype[numpy.uint16]], iPurePhoton: int):
         """
         Converts the  raw Photon counting data into an integer array containing the
         summed up photon counting values. The first invalid element (due to the data
@@ -316,7 +336,8 @@ class DataParser:
         photon_c = photon_c.astype(numpy.uint32,casting='unsafe')
         return numpy.delete(photon_c,0)
 
-    def scale_PhotonCounting(self, normalizedPhotonCount, binWidth):
+    def scale_PhotonCounting(self, normalizedPhotonCount: numpy.ndarray[Any, numpy.dtype[numpy.double]],
+                             binWidth: float) -> numpy.ndarray[Any, numpy.dtype[numpy.double]]:
         """
         Scales the normalized photon counting data with respect to the bin width 
         For more info read: https://licel.com/manuals/programmingManual.pdf#subsection.5.3
@@ -337,7 +358,8 @@ class DataParser:
         scaled_photon_c = dScale * normalizedPhotonCount
         return scaled_photon_c
     
-    def _combine_Photon_Squared_Data(self, uSQLSW, uSQMSW):
+    def _combine_Photon_Squared_Data(self, uSQLSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]],
+                                     uSQMSW: numpy.ndarray[Any, numpy.dtype[numpy.uint16]]) -> numpy.ndarray[Any, numpy.dtype[numpy.uint64]]:
         """
         combine squared photon raw data . 
 
@@ -357,23 +379,30 @@ class DataParser:
             squared_photon_data[i-1] = uSQLSW__[i] + (uSQMSW__[i] << 16 )
         return squared_photon_data    
 
-    def removeInvalidDataFromBuffer(self, pushBuffer):
+    def removeInvalidDataFromBuffer(self, pushBuffer: bytearray):
         '''
         remove raw data from buffer until next occurrence of xff xff. 
         this is used to clear the ```pushBuffer`` if the data is invalid. 
-        In the example below we want to remove the first line containing invalid raw data
+        In the example below we want to remove the first line containing invalid raw data\
         until the next occurrence of the xff xff delimiter marking the start of new data set:\r\n
         ``1- <xff xff> <timestamp> <shots> <INVALID raw data> \r\n``
-        ``2- <xff xff> <timestamp><shots> <raw data> <xff xff>  ``
+        ``2- <xff xff> <timestamp><shots> <raw data> <xff xff>``
 
         :param pushBuffer: buffer containing raw data
         :type pushBuffer: bytearray
+
         '''
         delimiterIndex = self._checkDelimiter(pushBuffer)
         del pushBuffer [:delimiterIndex[1]]
         return 
     
-    def parseDataFromBuffer(self, Config, ethernetController, shots):
+    def parseDataFromBuffer(self, Config: 'licel_Config.Config',
+                            ethernetController: 'licel_tcpip.EthernetController',
+                            shots: int) -> tuple[bool,
+                                                 list[numpy.ndarray[Any, numpy.dtype[numpy.uint32]]],
+                                                 int,
+                                                 dict[int, dict[str, int]],
+                                                 dict[int, dict[str, int]]]:
         '''
         parse the ``ethernetController.pushBuffer``,
         transfer the binary push data from ``ethernetController.pushBuffer`` into the 
@@ -416,12 +445,12 @@ class DataParser:
         parserIndex = 0
         dataValid = False
 
-        if ethernetController.bigEndianTimeStamp == False:
-            time_stamp  = int.from_bytes(ethernetController.pushBuffer[2:6],
+        if ethernetController.Tr.bigEndianTimeStamp == False:
+            time_stamp  = int.from_bytes(ethernetController.Tr.pushBuffer[2:6],
                                          byteorder='little', signed=False)
 
-        elif ethernetController.bigEndianTimeStamp == True:
-            time_stamp  = int.from_bytes(ethernetController.pushBuffer[2:6],
+        elif ethernetController.Tr.bigEndianTimeStamp == True:
+            time_stamp  = int.from_bytes(ethernetController.Tr.pushBuffer[2:6],
                                          byteorder='big', signed=False)
 
         parserIndex += 6 
@@ -432,26 +461,26 @@ class DataParser:
                 if trConfig.analogueEnabled[memory] == True:
                     TRnum = trConfig.nTransientRecorder
                     tmp_analogue_shot_dict[memory] =(int.from_bytes(
-                                                [ethernetController.pushBuffer[parserIndex],
-                                                 ethernetController.pushBuffer[parserIndex+1]],
+                                                [ethernetController.Tr.pushBuffer[parserIndex],
+                                                 ethernetController.Tr.pushBuffer[parserIndex+1]],
                                                  byteorder='little',signed=False))
                     parserIndex += MPUSH_SHOTNUM_OFFSET
                     numberToRead = trConfig.analogueBins[memory] 
-                    RawLsw = ethernetController.pushBuffer[parserIndex:(2*numberToRead)+parserIndex]
+                    RawLsw = ethernetController.Tr.pushBuffer[parserIndex:(2*numberToRead)+parserIndex]
                     parserIndex += 2*numberToRead 
                     tmp_analogue_shot_dict[memory] =(int.from_bytes(
-                                                [ethernetController.pushBuffer[parserIndex],
-                                                 ethernetController.pushBuffer[parserIndex+1]],
+                                                [ethernetController.Tr.pushBuffer[parserIndex],
+                                                 ethernetController.Tr.pushBuffer[parserIndex+1]],
                                                  byteorder='little',signed=False))
                     
                     parserIndex += MPUSH_SHOTNUM_OFFSET
-                    RawMsw = ethernetController.pushBuffer[parserIndex :(numberToRead*2)+ parserIndex]
+                    RawMsw = ethernetController.Tr.pushBuffer[parserIndex :(numberToRead*2)+ parserIndex]
                     parserIndex += 2*numberToRead 
 
                     lsw = numpy.frombuffer(RawLsw,numpy.uint16) 
                     msw = numpy.frombuffer(RawMsw,numpy.uint16)  
                     mem_extra = numpy.zeros((numberToRead))
-                    if ((shots > 32764) and (ethernetController.hardwareInfos[TRnum]['ADC Bits'] == 16)):
+                    if ((shots > 32764) and (ethernetController.Tr.hardwareInfos[TRnum]['ADC Bits'] == 16)):
                         tmp_analogue_shot_dict[memory] =(int.from_bytes(
                                                         [ethernetController.pushBuffer[parserIndex],
                                                         ethernetController.pushBuffer[parserIndex+1]],
@@ -471,23 +500,23 @@ class DataParser:
             for memory in trConfig.pcEnabled: 
                 if trConfig.pcEnabled[memory] == True: 
                     TRnum = trConfig.nTransientRecorder
-                    tmp_pc_shot_dict[memory] = (int.from_bytes([ethernetController.pushBuffer[parserIndex],
-                                                            ethernetController.pushBuffer[parserIndex+1]],
+                    tmp_pc_shot_dict[memory] = (int.from_bytes([ethernetController.Tr.pushBuffer[parserIndex],
+                                                            ethernetController.Tr.pushBuffer[parserIndex+1]],
                                          byteorder='little',signed=False))
                     parserIndex += MPUSH_SHOTNUM_OFFSET
 
                     numberToRead = trConfig.pcBins[memory]
-                    rawPC = ethernetController.pushBuffer[parserIndex:(numberToRead*2)+parserIndex]
+                    rawPC = ethernetController.Tr.pushBuffer[parserIndex:(numberToRead*2)+parserIndex]
                     parserIndex += 2*numberToRead 
                     mem_low  = numpy.frombuffer(rawPC,numpy.uint16)
-                    if ((shots > 4096 and ethernetController.hardwareInfos[TRnum]['PC Bits'] == 4)
-                        or (shots > 1024 and ethernetController.hardwareInfos[TRnum]['PC Bits'] == 6)
-                        or (shots > 256 and ethernetController.hardwareInfos[TRnum]['PC Bits'] == 8)):  
-                        tmp_pc_shot_dict[memory] = (int.from_bytes([ethernetController.pushBuffer[parserIndex],
-                                                            ethernetController.pushBuffer[parserIndex+1]],
+                    if ((shots > 4096 and ethernetController.Tr.hardwareInfos[TRnum]['PC Bits'] == 4)
+                        or (shots > 1024 and ethernetController.Tr.hardwareInfos[TRnum]['PC Bits'] == 6)
+                        or (shots > 256 and ethernetController.Tr.hardwareInfos[TRnum]['PC Bits'] == 8)):  
+                        tmp_pc_shot_dict[memory] = (int.from_bytes([ethernetController.Tr.pushBuffer[parserIndex],
+                                                            ethernetController.Tr.pushBuffer[parserIndex+1]],
                                                             byteorder='little',signed=False))
                         parserIndex += MPUSH_SHOTNUM_OFFSET
-                        mem_extra_buffer = ethernetController.pushBuffer[parserIndex:(numberToRead*2)+parserIndex]
+                        mem_extra_buffer = ethernetController.Tr.pushBuffer[parserIndex:(numberToRead*2)+parserIndex]
                         parserIndex += 2*numberToRead 
                         mem_extra = numpy.frombuffer(mem_extra_buffer,numpy.uint16)
                         convertedPc = self._convert_Photoncounting_Fullword(mem_low, mem_extra)
@@ -498,13 +527,13 @@ class DataParser:
                     DataSet.append(convertedPc)
                     pc_shot_dict[TRnum] = tmp_pc_shot_dict
 
-        if (ethernetController.pushBuffer[parserIndex:parserIndex+2] == b'\xff\xff'): 
+        if (ethernetController.Tr.pushBuffer[parserIndex:parserIndex+2] == b'\xff\xff'): 
             dataValid = True
-            del ethernetController.pushBuffer[:parserIndex]
+            del ethernetController.Tr.pushBuffer[:parserIndex]
 
         return dataValid, DataSet, time_stamp, analogue_shot_dict, pc_shot_dict
          
-    def _generateFileName(self,prefix):
+    def _generateFileName(self,prefix: str) -> str:
         """ 
         generate file name from date, as specified in  
         https://licel.com/raw_data_format.html 
@@ -530,7 +559,9 @@ class DataParser:
                                                                int(millisec))
         return filename
     
-    def _generateSecondHeaderline(self,Config, startTime,stopTime ):
+    def _generateSecondHeaderline(self,Config: 'licel_Config.Config',
+                                  startTime: str,
+                                  stopTime: str) -> str:
         """ 
         generate second header line from ``Config``.
         second header line contains info about the system , as specified in  
@@ -557,7 +588,8 @@ class DataParser:
                          measInfo.Azimuth))
         return header
     
-    def _generateThirdHeaderline(self,Config, shots, timestamp = None):
+    def _generateThirdHeaderline(self,Config: 'licel_Config.Config', shots: int,
+                                 timestamp: int | None = None) -> str:
         """
         generate third header from  ``Config``, as specified in  
             https://licel.com/raw_data_format.html
@@ -585,8 +617,10 @@ class DataParser:
                          shots, measurConf.repRateL2) ) 
         return header
 
-    def _generatePushDatasetsHeaderline(self, Config, TRHardwareInfo, 
-                                        analogue_shot_dict, pc_shot_dict):
+    def _generatePushDatasetsHeaderline(self, Config:'licel_Config.Config',
+                                        TRHardwareInfo: dict[int, dict[str, int | str | float]],
+                                        analogue_shot_dict: dict[int, dict[str, int]],
+                                        pc_shot_dict: dict[int, dict[str, int]]) -> str:
         """
         generate header lines specific to the data sets,for each 
         active data set in ``Config``, as specified in  
@@ -614,6 +648,7 @@ class DataParser:
                     trNum = trConfig.nTransientRecorder
                     binshift_decimal = int((TRHardwareInfo[trNum]['binShift'] % 1) * 1000)
                     pol = self._convertPolarizationToFileNotation(trConfig.analoguePolarisation[key])
+                    divider = 1 if trConfig.freqDivider == 0  else trConfig.freqDivider
                     header =(" 1 0 {laser} {dataPoints} {laserPolarization} {pmtHV:04d}"
                              " {binwidth:1.2f} {wavelength:05d}.{polStatus} 0 0"
                              " {binshift:02d} {binshift_dec:3d} {adc:02d}"
@@ -622,7 +657,7 @@ class DataParser:
                                    dataPoints = (trConfig.analogueBins[key]-1),
                                    laserPolarization = trConfig.analoguePolarisation[key],
                                    pmtHV = int(trConfig.pmVoltageAnalogue[key]),
-                                   binwidth = float((TRHardwareInfo[trNum]['binWidth'] )* (trConfig.freqDivider)),
+                                   binwidth = float((TRHardwareInfo[trNum]['binWidth'] )* (divider)),
                                    wavelength = int (trConfig.analogueWavelength[key]),
                                    polStatus = pol,
                                    binshift = int(TRHardwareInfo[trNum]['binShift']), 
@@ -639,6 +674,7 @@ class DataParser:
                     binshift_decimal = int ((TRHardwareInfo[trNum]['binShift'] % 1) * 1000)
                     pol = self._convertPolarizationToFileNotation(trConfig.pcPolarisation[key])
                     scalingFactor = 25/63  # from labview 
+                    divider = 1 if trConfig.freqDivider == 0  else trConfig.freqDivider
                     header =(" 1 1 {laser} {dataPoints} {laserPolarization} {pmtHV:04d}"
                              " {binwidth:1.2f} {wavelength:05d}.{polStatus} 0 0 00 000 00"
                              " {shots:06d} {myRange:6.4f} BC{trNum:1X}\n"
@@ -646,7 +682,7 @@ class DataParser:
                                    dataPoints = (trConfig.pcBins[key]-1),
                                    laserPolarization = trConfig.pcPolarisation[key],
                                    pmtHV = int(trConfig.pmVoltagePC[key]),
-                                   binwidth = (float(TRHardwareInfo[trNum]['binWidth'] )* (trConfig.freqDivider)),
+                                   binwidth = (float(TRHardwareInfo[trNum]['binWidth'] )* (divider)),
                                    wavelength = int (trConfig.pcWavelength[key]),
                                    polStatus = pol,
                                    binshift = int("00"), 
@@ -659,7 +695,7 @@ class DataParser:
 
         return myHeaderLine
 
-    def _convertPolarizationToFileNotation(self, polarization):
+    def _convertPolarizationToFileNotation(self, polarization:int) -> str:
         """ 
         convert ``polarization`` from Config (int) to polarization file notation(str)
 
@@ -680,9 +716,13 @@ class DataParser:
         if polarization == 4 : 
             return "l"
         
-    def savePushDataToLicelFileFormat(self, DataSet, Config,  startTime, stoptTime,
-                 TRHardwareInfo, time_stamp, analogue_shot_dict,
-                 pc_shot_dict, shots, ACQUISPERFILE ):
+    def savePushDataToLicelFileFormat(self, DataSet:list[numpy.ndarray[Any, numpy.dtype[numpy.uint32]]],
+                                      Config:'licel_Config.Config', 
+                                      startTime:'datetime', stoptTime:'datetime',
+                                      TRHardwareInfo: dict[int, dict[str, int | str | float]],
+                                      time_stamp: int, analogue_shot_dict: dict[int, dict[str, int]],
+                                      pc_shot_dict: dict[int, dict[str, int]],
+                                      shots: int, ACQUISPERFILE: int ):
         '''
         Save the acquired DataSet to the file path specified in the configuration in the 
         Licel file format. for more information about licel file format see:
@@ -749,8 +789,10 @@ class DataParser:
 
         self._acquisWrittenToFile += 1
 
-    def _generateAcquisDatasetsHeaderline(self, Config, TRHardwareInfo, shots, bins,
-                                          device_number, DataType, Memory):
+    def _generateAcquisDatasetsHeaderline(self, Config:'licel_Config.Config',
+                                          TRHardwareInfo: dict[int, dict[str, int | str | float]],
+                                          shots: int, bins: int, device_number: int,
+                                          DataType: str, Memory: str) -> str:
         """
         generate header lines specific to the data sets,for each 
         active data set in ``Config``, as specified in  
@@ -825,11 +867,11 @@ class DataParser:
 
         return myHeaderLine
 
-    def saveAcquisDataToLicelFileFormat(self, prefix, shots, bins,  
-                                        Config,my_startTime, 
-                                        my_stopTime, TRHardwareInfo, 
-                                        deviceNumber, DataType,
-                                        Memory, Data):
+    def saveAcquisDataToLicelFileFormat(self, prefix:str, shots:int, bins:int,  
+                                        Config:'licel_Config.Config', my_startTime:'datetime', 
+                                        my_stopTime:'datetime', TRHardwareInfo: dict[int, dict[str, int | str | float]], 
+                                        deviceNumber:int, DataType:str,
+                                        Memory:str, Data: list[numpy.ndarray[Any, numpy.dtype[numpy.uint32]]] ):
         
         '''
         Save the acquired DataSet to the file path specified in the configuration in the 
@@ -871,7 +913,7 @@ class DataParser:
         '''    
         filename = self._generateFileName(prefix)
         
-        self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
+        self._path = os.path.join(Config.measurmentInfo.szOutPath,filename)
         
         my_startTime = my_startTime.strftime("%d/%m/%Y %H:%M:%S")
         my_stopTime = my_stopTime.strftime("%d/%m/%Y %H:%M:%S")
@@ -888,7 +930,9 @@ class DataParser:
         f.write(b'\r\n')
         f.close()
 
-    def pushDataLog(self, asciiFile_path, ethernetController, idn, startTime, Config):
+    def pushDataLog(self, asciiFile_path:str,
+                    ethernetController:'licel_tcpip.EthernetController',
+                    idn:str, startTime: datetime, Config:'licel_Config.Config'):
         """
         write log file to spcified ``asciiFile_path``
 
