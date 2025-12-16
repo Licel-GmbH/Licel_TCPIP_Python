@@ -8,3 +8,4 @@ Examples
    powermeter/powermeter
    photomultiplier/photomultiplier
    waverider/wind_example
+   SP32/SP32
