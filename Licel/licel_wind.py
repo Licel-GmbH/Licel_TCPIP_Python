@@ -1,8 +1,13 @@
 from Licel import TCP_util
 import struct
 import numpy as np
+import win_precise_time as wpt
 
- 
+from typing import TYPE_CHECKING, Any, Union
+
+if TYPE_CHECKING:
+    from Licel import licel_tcpip
+
 # TODO XXX : reqChannelShots is not yet implemented
 
 
@@ -33,14 +38,14 @@ class Waverider(TCP_util.util):
     #: list the allowed value for the fft size
     possibleFFTSIZE = [32, 64, 128, 256, 512, 1024]
 
-    def __init__(self, ethernetController) -> None:
+    def __init__(self, ethernetController: 'licel_tcpip.EthernetController') -> None:
         
         self.commandSocket  = ethernetController.commandSocket
         self.PushSocket     = ethernetController.PushSocket
         self.sockFile       = ethernetController.sockFile
         self.pushSockFile   = ethernetController.pushSockFile
     
-    def _windV2Request(self, command : str)-> str:
+    def _windV2Request(self, command : str)-> Union [str, int, bytearray]:
         '''
         Low level function for sending and reading requests to/from Wind system.
         
@@ -58,6 +63,7 @@ class Waverider(TCP_util.util):
         request = struct.pack('16B', 0, 0, 0, 0, 0, 13, 0, self.getterCommands[command],
                             0, 0, 0, 0, 0, 0, 0, 0)
         self.commandSocket.send(request)
+        # big endian bytes to read
         bytesToRead = self.__getBytesToRead__()
         
         if command  == "reqDataAvailable":
@@ -77,7 +83,7 @@ class Waverider(TCP_util.util):
         except:
             return (str(int.from_bytes(resp, 'big')))
 
-    def _windV2Set(self, command, value) -> str:
+    def _windV2Set(self, command: str, value: int) -> str:
         '''
         Low level function for setting and reading parameters to/from Wind system
         will
@@ -102,7 +108,7 @@ class Waverider(TCP_util.util):
         resp = self.commandSocket.recv(bytesToRead)
         return resp.decode("utf-8")
     
-    def __swap_endian_32bit__(self, num):
+    def __swap_endian_32bit__(self, num: int) -> int:
         '''
         helper function that return the given number as little endian.
 
@@ -140,7 +146,6 @@ class Waverider(TCP_util.util):
         if fftSize not in self.possibleFFTSIZE: 
             raise RuntimeError ("unexpected fftSize value. Possible value are: \r\n", \
                                  self.possibleFFTSIZE)
-        cmd = "FFTSIZE " +str (fftSize)
         resp = self._windV2Set("setFFTsize",fftSize)
         return resp
 
@@ -151,8 +156,8 @@ class Waverider(TCP_util.util):
         :param fftNum: number of fft to be computed.
         :type fftNum: int
 
-        :return:  response from the ethernet controller, 
-        should be NUMFFT <nFFT> executed.
+        :return:  response from the ethernet controller, should be NUMFFT <nFFT> executed.
+
         :rtype: str
         '''
         return self._windV2Set("setNumFFT",fftNum)
@@ -164,8 +169,8 @@ class Waverider(TCP_util.util):
         :param shots: Number of shots to be collected in a single collection.
         :type shots: int
 
-        :return: response from the ethernet controller, 
-        should be: `SHOTS <nShots> executed`
+        :return: response from the ethernet controller, should be: `SHOTS <nShots> executed`
+
         :rtype: str
         '''
         return self._windV2Set("setShots",shots)
@@ -212,7 +217,7 @@ class Waverider(TCP_util.util):
         '''
         Query the waverider for it's identification number. 
 
-        :return: Firmware revision date, for example `Wind_v2_15.11.2024 `
+        :return: Firmware revision date, for example `Wind_v2_15.11.2024`
         :rtype: str
         '''
         return self._windV2Request("reqIDN")  
@@ -221,7 +226,7 @@ class Waverider(TCP_util.util):
         '''
         Query the hardware for it's capability. 
 
-        :return: the waverider should return `CAP: Wind `
+        :return: the waverider should return `CAP: Wind`
         :rtype: str
         '''
         return self._windV2Request("reqCAP")  
@@ -269,20 +274,22 @@ class Waverider(TCP_util.util):
     def getRawData(self) -> bytearray:
         '''
         The wind will return the following data package: 
-        | 8 bytes Header 0x00 00 00 D0 00 0C 00 00 | 
-        | 4 bytes Payload Size +  4 Bytes padding  | 
-        | 8 Bytes Time stamp    | 
-        | 8 bytes 0x00 zero padding                |
-        | Payload     2^15  bytes                  |
+
+        | 8 bytes Header 0x00 00 00 D0 00 0C 00 00 
+        | 4 bytes Payload Size +  4 Bytes padding  
+        | 8 Bytes Time stamp    
+        | 8 bytes 0x00 zero padding               
+        | Payload     2^15  bytes                 
 
         The header and the 4 bytes payload size will be "consumed" by windV2Request
         all we are left with is 
-        (4 bytes payload size padding +
-         4 bytes timestamp            +
-         4 bytes padding              +
-         8 bytes zero padding         +
-        actual payload (8*2^15)         ). 
-        4 + 8 + 8 + 8 * 2^15 = 262164 Bytes
+
+        | (4 bytes payload size padding + 
+        | 4 bytes timestamp            + 
+        | 4 bytes padding              + 
+        | 8 bytes zero padding         + 
+        | actual payload (8*2^15)      ) |
+        | 4 + 8 + 8 + 8 * 2^15 = 262164 Bytes 
 
         :return: raw power spectra data.
         :rtype: byte array.
@@ -290,8 +297,8 @@ class Waverider(TCP_util.util):
 
         return self._windV2Request("reqData")
 
-    def getData(self, FFT_Size, numFFT) -> list[np.ndarray[np.uint64], 
-                                                np.ndarray[np.uint64]]:
+    def getData(self, FFT_Size: int, numFFT: int)->tuple[np.ndarray[Any, np.dtype[np.uint64]],
+                                                         np.ndarray[Any, np.dtype[np.uint64]]]:
         
         '''
         The data is retrieved from the Wave Rider via a TCP/IP socket.
@@ -377,7 +384,7 @@ class Waverider(TCP_util.util):
         samplingPeriode_us = (1/sampleRate_HZ) * 1000000
         return fftsize * samplingPeriode_us
     
-    def getRangebins(self, distance: int, fftSize: int, samplingRate_hz:int) -> str:
+    def getRangebins(self, distance: int, fftSize: int, samplingRate_hz:int) -> int:
         '''
         return the number of fft that needs to be computed, to acquire data up until 
         the specified range. 
@@ -410,4 +417,3 @@ class Waverider(TCP_util.util):
         :type fftsize: int
         '''
         return SamplingRate_HZ / fftsize
-    

@@ -1,59 +1,80 @@
+from __future__ import annotations
 import numpy as np
 import netCDF4 
-from datetime import datetime, timezone
+from datetime import datetime
 import time
-import os 
+import os
+from typing import Any ,Literal, TYPE_CHECKING
+from typing_extensions import TypeAlias
+if TYPE_CHECKING:
+    from Licel import licel_wind
+
+AccessMode: TypeAlias = Literal["r", "w", "r+", "a", "x", "rs", "ws", "r+s", "as"]
+
+
 
 class Licel_Netcdf_Wrapper():
 
-    #: netcdf filename
+    #:  filename
     filename = ""
+    #: netcdf filename
+    netcdf_file_name : netCDF4.Variable[str] 
+
+    acessmode : AccessMode= "r"
     #: netcdf Dataset
-    Dataset = "" 
+    Dataset : netCDF4.Dataset 
 
+    runs = 1
     #: netcdf variable holding which user is logged into the operating system
-    os_user = ""
+    os_user: netCDF4.Variable[str]  
     #: netcdf variable holding operating system info
-    os_info = ""
+    os_info : netCDF4.Variable[str] 
     #: netcdf variable holding python API version
-    wind_version = ""
+    wind_version : netCDF4.Variable[str] 
     #: netcdf variable holding waverider Hardware version
-    waverider_version = ""
+    waverider_version : netCDF4.Variable[str] 
     #: netcdf variable holding wind lidar station name.
-    station_name = ""
+    station_name : netCDF4.Variable[str] 
     #: netcdf variable holding wind lidar latitude
-    station_lat = 0.0 
+    station_lat:    netCDF4.Variable[float] 
     #: netcdf variable holding wind lidar longitude
-    station_long = 0.0 
+    station_long:   netCDF4.Variable[float] 
     #: netcdf variable holding wind lidar altitude
-    station_alt = 0.0
+    station_alt:    netCDF4.Variable[float] 
     #: netcdf variable holding wind lidar azimuth
-    azimuth = 0.0 
+    azimuth:    netCDF4.Variable[float] 
     #: netcdf variable holding wind lidar zenith 
-    zenith = 0.0 
+    zenith: netCDF4.Variable[float]
     #: netcdf variable holding wind lidar maximal distance range
-    max_distance = 0.0
+    max_distance:  netCDF4.Variable[int]
     #: netcdf variable holding wind lidar range resolution 
-    range_resolution = 0.0
+    range_resolution: netCDF4.Variable[float] 
     #: netcdf variable holding wind lidar timing resolution
-    time_resolution = 0.0
+    time_resolution: netCDF4.Variable[float]  
     #: netcdf variable holding wind lidar frequency increment  
-    freqeuncy_increment = 0.0
+    frequncy_increment: netCDF4.Variable[float]  
     #: netcdf variable holding waverider ADC sampling rate
-    waverider_sample_rate = 0.0
+    waverider_sample_rate: netCDF4.Variable[float] 
     #: netcdf variable holding trigger names
-    trigger_names = 0
+    trigger_names: netCDF4.Variable[str] 
     #: netcdf variable holding target shots we want to acquire
-    target_shots = 0
+    target_shots: netCDF4.Variable[int] 
     #: netcdf variable holding fft size
-    fft_size = 0
+    fft_size: netCDF4.Variable[int] 
     #: netcdf variable holding index at which our first record in the file start,
-    #:  this variable is needed for compatibility reason with the Labview version.
-    first_record = 0
+    #: this variable is needed for compatibility reason with the Labview version.    
+    first_record: netCDF4.Variable[int] 
+    #: netcdf variable holding the waverider timestamp at which the acquisition started
+    timestamp_start: netCDF4.Variable[int] 
+    current_record: netCDF4.Variable[int]
+    timestamp_record: netCDF4.Variable[int]
+    pc_time_start: netCDF4.Variable[float] 
+    pc_time_read: netCDF4.Variable[float]
+    acquired_shots: netCDF4.Variable[int] 
+    fft_data: netCDF4.Variable[int]
 
-    def __init__(self, filename, access_mode, device, numFFT, FFTSize, numTrig):
+    def __init__(self, filename:str, acessmode: AccessMode, device:str, numFFT:int, FFTSize:int, numTrig:int):
         '''
-
         When initializing the class Licel_Netcdf_Wrapper, we create the netcdf
         data structure which will hold the metainformation and powerspectra 
         of our acquisition. 
@@ -80,7 +101,7 @@ class Licel_Netcdf_Wrapper():
         :type numTrig: int
         '''
         self.filename = filename
-        self.accessmode = access_mode
+        self.accessmode  : AccessMode = acessmode
         self.numFFT = numFFT
         self.FFT_Size = FFTSize
         self.numTrig = numTrig
@@ -106,35 +127,35 @@ class Licel_Netcdf_Wrapper():
         :rtype: netCDF4.Dataset
         '''
         
-        Dataset = netCDF4.Dataset(self.filename, self.accessmode, 'NETCDF4')
+        Dataset = netCDF4.Dataset(self.filename, self.accessmode , format='NETCDF4')
         self.time_dim = Dataset.createDimension("time", None) # unlimited dimension
         Dataset.createDimension("num_trigger", self.numTrig)
         Dataset.createDimension("num_fft", self.numFFT)
         # TODO : fft_size_dim is actually the size of the powerspectra
         # to conserve compatibility with the Labview viewer the name remains unchanged. 
         # PowerSpectra_dim = fft_size / 2
-        Dataset.createDimension("fft_size_dim", self.FFT_Size/2) 
+        Dataset.createDimension("fft_size_dim", int (self.FFT_Size/2)) 
         Dataset.createDimension('max_slen', 200)
 
-        self.os_user = Dataset.createVariable("os_user",
-                                            datatype= 'S1', dimensions = ('max_slen'))
+        self.os_user  = Dataset.createVariable("os_user",
+                       datatype= 'S1', dimensions = ('max_slen'))
         self.os_info = Dataset.createVariable("os_info",
-                                    datatype= 'S1', dimensions = ('max_slen'))
+                       datatype= 'S1', dimensions = ('max_slen'))
         self.wind_version = Dataset.createVariable("wind_version",
                             datatype= 'S1', dimensions = ('max_slen'))
-        self.waverider_version = Dataset.createVariable("waverider_version",
-                            datatype= 'S1', dimensions = ('max_slen'))
-        self.netcdf_file_name = Dataset.createVariable("file_name",
-                            datatype= 'S1', dimensions = ('max_slen'))
-        self.station_name = Dataset.createVariable("station_name",
-                    datatype= 'S1', dimensions = ('max_slen'))
+        self.waverider_version  = Dataset.createVariable("waverider_version",
+                                  datatype= 'S1', dimensions = ('max_slen'))
+        self.netcdf_file_name   = Dataset.createVariable("file_name",
+                                datatype= 'S1', dimensions = ('max_slen'))
+        self.station_name= Dataset.createVariable("station_name",
+                           datatype= 'S1', dimensions = ('max_slen'))
         self._createStationCoordinateVariable(Dataset)
         self._createWaveriderVaraiables(Dataset)
 
         return Dataset
     
-    def fillAcquisitionInfo(self, max_distance, samplingRate_hz, targetShots,
-                        FFT_Size, wind):
+    def fillAcquisitionInfo(self, max_distance: int, samplingRate_hz: int,
+                            targetShots: int, FFT_Size: int, wind: 'licel_wind.Waverider'):
         '''
         fill information related to the Acquisition.
 
@@ -161,7 +182,7 @@ class Licel_Netcdf_Wrapper():
         self.max_distance[:] = max_distance
         self.range_resolution[:] = rangeRes
         self.time_resolution[:] = timeRes
-        self.freqeuncy_increment[:] = freqeuncy_increment
+        self.frequncy_increment[:] = freqeuncy_increment 
         self.waverider_sample_rate[:] = samplingRate_hz
         self.target_shots[:] = targetShots
         self.fft_size[:] = FFT_Size
@@ -170,17 +191,18 @@ class Licel_Netcdf_Wrapper():
         '''
         fill Netcdf global attribuite.
         '''
-        self.Dataset.title = "Licel WIND"
+        self.Dataset.title  = "Licel WIND"
         self.Dataset.format_date = "2024-06-21"
         self.Dataset.format_version = 0.1
         self.Dataset.history = "Licel WIND V2"
         self.Dataset.creation_date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-        username = os.environ.get('USER', os.environ.get('USERNAME')) 
+        username = str(os.environ.get('USER', os.environ.get('USERNAME'))) 
         self.writeString(self.os_user,username)
         self.writeString(self.os_info,os.name)
         self.writeString(self.wind_version,"Python V0.1")
         self.writeString(self.waverider_version,"Firmware rev. 2")
         self.writeString(self.netcdf_file_name,self.filename)
+
 
     def fillGeoPositionInfo(self, stationName:str, latitude: float,
                              longitude: float, altitude: float,
@@ -215,14 +237,15 @@ class Licel_Netcdf_Wrapper():
         self.zenith[:] = zenith
         self.writeString(self.station_name,stationName)
     
+
     def fillTransientDataset(self) ->  netCDF4.Dataset: 
-        Dataset = netCDF4.Dataset(self.filename, self.accessmode, 'NETCDF4')
+        Dataset = netCDF4.Dataset(self.filename, self.accessmode , format='NETCDF4')
         print("Work in progress ...")
         print("Support for Transient Recorder NetCDF planned for the up " \
               "coming release ...")
         return Dataset
 
-    def writeString(self, NetCDF_var, Var_string):
+    def writeString(self, NetCDF_var: netCDF4.Variable[str]  , Var_string:str):
         '''
         helper function to write strings to netcdf file.
 
@@ -235,7 +258,7 @@ class Licel_Netcdf_Wrapper():
         tmp = np.array([Var_string],dtype='S200')
         NetCDF_var[:] = netCDF4.stringtochar(tmp)
 
-    def printVar(self, NetCDF_var):
+    def printVar(self, NetCDF_var: netCDF4.Variable[str]):
         '''
         helper function to print netcdf variables.
 
@@ -244,7 +267,7 @@ class Licel_Netcdf_Wrapper():
         '''
         print(NetCDF_var[:])
 
-    def _createStationCoordinateVariable(self, Dataset):
+    def _createStationCoordinateVariable(self, Dataset: netCDF4.Dataset):
         '''
         helper function to create netcdf structure holding geographical 
         position information 
@@ -263,7 +286,7 @@ class Licel_Netcdf_Wrapper():
         self.zenith = Dataset.createVariable("zenith",
                     datatype= "f8", fill_value = 5)
 
-    def _createWaveriderVaraiables(self, Dataset):
+    def _createWaveriderVaraiables(self, Dataset: netCDF4.Dataset):
         '''
         helper function to create variables structure holding the 
         waverider and acquisition information, including the Dataset structure.
@@ -280,7 +303,7 @@ class Licel_Netcdf_Wrapper():
         self.time_resolution = Dataset.createVariable("time_resolution",
             datatype= "f8", fill_value = 0)
         
-        self.freqeuncy_increment = Dataset.createVariable("frequncy_increment",
+        self.frequncy_increment = Dataset.createVariable("frequncy_increment",
             datatype= "f8", fill_value = 0) 
         
         self.waverider_sample_rate = Dataset.createVariable("waverider_sample_rate",
@@ -374,10 +397,10 @@ class Licel_Netcdf_Wrapper():
         self.time_resolution.long_description	= "Time increment"
         self.time_resolution.C_format		= "%7.2f"
         
-        self.freqeuncy_increment.units               = "Hertz" 
-        self.freqeuncy_increment.valid_range		= (0.0, 10.0)
-        self.freqeuncy_increment.long_description	= "Frequency increment"
-        self.freqeuncy_increment.C_format		= "%9.6f"
+        self.frequncy_increment.units               = "Hertz" 
+        self.frequncy_increment.valid_range		= (0.0, 10.0)
+        self.frequncy_increment.long_description	= "Frequency increment"
+        self.frequncy_increment.C_format		= "%9.6f"
 
         self.waverider_sample_rate.units               = "MHz" 
         self.waverider_sample_rate.valid_range		= (0.0, 3200) 
@@ -450,8 +473,8 @@ class Licel_Netcdf_Wrapper():
         netcdf_time = unix_time + epoch_delta
         return float(netcdf_time)
     
-    def saveNetcdf(self,cycle, powerSpectra: np.ndarray[np.uint64],
-                   timestamp: np.ndarray['1',np.uint64], currentShots: int):
+    def saveNetcdf(self,CYCLE:  int, powerSpectra: np.ndarray[Any, np.dtype[np.uint64]],
+                   timestamp: np.ndarray[Any, np.dtype[np.uint64]], currentShots: int  ):
         '''
         Save powerspectra data acquired from the waverider to the netcdf file.
 
@@ -467,8 +490,9 @@ class Licel_Netcdf_Wrapper():
         '''
         powerSpectra_size = self.FFT_Size / 2
         reshaped_powerSpectra = np.reshape(powerSpectra, (self.numFFT, int(powerSpectra_size)))
-        self.timestamp_record[cycle:] = timestamp 
-        self.current_record[cycle:] = cycle
-        self.acquired_shots[cycle:] = currentShots
-        self.Dataset.variables['fft_data'][cycle] = reshaped_powerSpectra
-        print("timestamp:",self.current_record[:]) 
+        self.timestamp_record[CYCLE:] = timestamp 
+        self.current_record[CYCLE:] = CYCLE
+        self.acquired_shots[CYCLE:] = currentShots
+        self.Dataset.variables['fft_data'][CYCLE] = reshaped_powerSpectra
+        print("Acqed shots:",self.acquired_shots[:])
+        print("timestamp:",self.timestamp_record[:]) 
