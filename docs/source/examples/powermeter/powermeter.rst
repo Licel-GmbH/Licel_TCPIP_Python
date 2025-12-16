@@ -1,7 +1,7 @@
-Powermeter example
+**Powermeter example**
 ====================== 
 
-The ``powermeter_example.py`` demonstrate the use powermeter device.
+The ``powermeter_example.py`` demonstrate the use of the powermeter device.
 
 Call the script using:
 
@@ -22,3 +22,8 @@ The powermeter can be operate in 2 modes :
 
 2. **push mode**: For every received trigger, the powermeter will calculate the pulse amplitude
                   and automatically send it without further request from the host computer. 
+
+.. toctree::
+    :maxdepth: 1
+
+    powermeter_example_src
