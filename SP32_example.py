@@ -16,6 +16,9 @@ def commandLineInterface():
                             help='number of shots to acquire per run')
     argparser.add_argument('--acq', type=int, default=10,
                             help='number of acquisition to perform')
+    argparser.add_argument('--sim', type=int, default=0,
+                            help='simulate trigger')
+    
     args = argparser.parse_args()
     return args
 
@@ -73,6 +76,10 @@ def main():
     print(sp32.getShutterPosition())
     print(sp32.openShutter())
     print(sp32.getShutterPosition())
+    if myArguments.sim == 1:
+        print(sp32.startInternalTrigger())
+    else :
+        print(sp32.stopInternalTrigger())   
     
 
     print("****************** Starting Acquisition ***********************")
