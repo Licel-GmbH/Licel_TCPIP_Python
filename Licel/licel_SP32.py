@@ -43,9 +43,10 @@ class SP32(TCP_util.util):
         """
         command = "CAP?"
         resp = self._writeReadAndVerify(command, "CAP")
-        if resp.find("32CHANNEL") == -1 :
+        if resp.find("32CHANNEL") == -1 and resp.find("LIDARINO") == -1:
             print(resp)
-            raise RuntimeError("returned capabilities do not indicate SP32") 
+            raise RuntimeError("returned capabilities do not indicate SP32 or a LIDARINO. " \
+            "Please verify the connection and the controller model.") 
         return resp 
     
     def getCurrent(self) -> str:
@@ -389,7 +390,12 @@ class SP32(TCP_util.util):
         """
         
         dataHandler = licel_data.DataParser()
-        Config.numDataSets = 32
+        # Strictly require trace-by-bin matrix shape.
+        if data.ndim != 2:
+            raise ValueError(f"SP32 data must be 2D (traces, bins), got shape {data.shape}")
+        Config.numDataSets = int(data.shape[0])
+        if Config.numDataSets <= 0:
+            raise ValueError("SP32 data contains no traces to save")
         filename = dataHandler._generateFileName(prefix)
 
         fileDescriptor = open (os.path.join(Config.measurementInfo.szOutPath,filename), 'ab')
@@ -408,7 +414,8 @@ class SP32(TCP_util.util):
                                                            Config.SP32param.centralWavelength,
                                                            Config.SP32param.nm_PerChannel,
                                                            shots, 
-                                                           Config.SP32param.discriminator)
+                                                           Config.SP32param.discriminator,
+                                                           Config.numDataSets)
                                                            .encode())
         fileDescriptor.write(b'\n')
 
@@ -416,18 +423,19 @@ class SP32(TCP_util.util):
             fileDescriptor.write(data[i][0:Config.SP32param.noBins])
             fileDescriptor.write(b'\r\n')
         fileDescriptor.close()
-
+        print(f"Data saved to {os.path.join(Config.measurementInfo.szOutPath,filename)}")
         return
     
     def __generateSP32Headerline(self, bins:int, pmtHV:int, binwidth: float,
                                  centralWavelength:float, nm_PerChannel:float,
-                                 shots:int, discriminator:int) -> str:
+                                 shots:int, discriminator:int,
+                                 num_channels:int = 32) -> str:
         myHeaderLine = ""
         rangeResolution = binwidth *150 / 1000 # convert bindth from ns to meters
         startwavelength = centralWavelength + (15.5 * nm_PerChannel)
         SCALING_FACTOR = 25/63  # from labview 
 
-        for i in range (32):
+        for i in range(num_channels):
             wavelength = startwavelength - i * nm_PerChannel
             header =(" 1 1 1 {dataPoints} 1 {pmtHV:04d}"
                      " {binwidth:1.2f} {wavelength:4.2f} {polStatus} 0"
