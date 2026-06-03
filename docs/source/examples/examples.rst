@@ -9,3 +9,4 @@ Examples
    photomultiplier/photomultiplier
    waverider/wind_example
    SP32/SP32
+   SilentState/SilentState
