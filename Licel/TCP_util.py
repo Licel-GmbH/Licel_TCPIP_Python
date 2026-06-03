@@ -2,6 +2,7 @@
 #Copyright ©: Licel Gmbh
 
 import socket
+from typing import Optional
 
 class util:
 
@@ -11,57 +12,59 @@ class util:
 
     """
     
-    def __init__(self, ip: str, port : int):
-        self.commandSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.PushSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.killsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def __init__(self, ip: str, port: int) -> None:
+        self.commandSocket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.PushSocket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.killsock: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.commandSocket.settimeout(5) # 1sec timeout 
         self.PushSocket.settimeout(5)
-        self.sockFile=self.commandSocket.makefile('rw')
-        self.pushSockFile=self.PushSocket.makefile('rw')
-        self.ip = ip
-        self.port = port 
-        self.pushPort = port + 1 
-        self.killPort = port + 2
+        self.sockFile = self.commandSocket.makefile('rw')
+        self.pushSockFile = self.PushSocket.makefile('rw')
+        self.ip: str = ip
+        self.port: int = port 
+        self.pushPort: int = port + 1 
+        self.killPort: int = port + 2
 
-    def writeCommand(self,command: str) -> None:
+    def writeCommand(self, command: str) -> None:
+        """Write the specified command to the ethernet controller.
+        
+        Adds <CRLF> to each command before sending.
+
+        :param command: command to send to the controller
+        :type command: str
+        :returns: None
+        :rtype: None
+        
+        See https://licel.com/manuals/ethernet_pmt_tr.pdf#section.9.1 for available commands.
         """
-        write the specified command to the ethernet controller. 
-        adds <CRLF> to each command before sending.
-
-        :param command: possible command are referenced in \r\n
-        https://licel.com/manuals/ethernet_pmt_tr.pdf#section.9.1
-
-        :type command: str 
-        """
-        command = command+"\r\n"
+        command = command + "\r\n"
         self.commandSocket.send(command.encode())
-        return
 
     def readResponse(self) -> str:
-        """
-        read response from the command socket of the ethernet controller. 
+        """Read response from the command socket of the ethernet controller.
 
-        :returns: response string.
-        :raises: timeout exception if  fails to respond.
+        :returns: response string
+        :rtype: str
+        :raises socket.timeout: if controller fails to respond within timeout period
         """
         try:
             # note that sockFile.readline() change \r\n to only \n
             response = self.sockFile.readline()
             return response
         except socket.timeout:
-            raise socket.timeout ("Response timeout") 
+            raise socket.timeout("Response timeout") 
         
-    def recvall(self, nBins: int) -> bytearray | None:
+    def recvall(self, nBins: int) -> Optional[bytearray]:
         """
-        receive the number of nBins specified \r\n
+        receive the number of nBins specified
 
         :param nBins: number of bins to read. Note that a bin consists of uint16, 
                       so the total number of received bytes equals 2* bins    
         :type nBins: int  
 
-        :returns: bytearray of size (2*nBins) containing the raw data.  
+        :returns: bytearray of size (2*nBins) containing the raw data, or None if connection closed
+        :rtype: Optional[bytearray]
         """
         rawData = bytearray()
         while len(rawData) < 2*nBins:
@@ -72,19 +75,19 @@ class util:
             rawData.extend(packet)
         return rawData
     
-    def _writeReadAndVerify(self, command:str, verifyString:str) -> str:
+    def _writeReadAndVerify(self, command: str, verifyString: str) -> str:
         """
-        helper function to write on the command socket, it reads and verifies the response 
+        Helper function to write on the command socket, read and verify the response.
 
         :param command: command to be sent. 
         :type command: str 
 
         :param verifyString: substring expected to be received in the response
-        :type: str 
+        :type verifyString: str 
 
-        :raises: RuntimeError if the response does not contain the expected `verifyString`
+        :raises RuntimeError: if the response does not contain the expected `verifyString`
 
-        :returns: response 
+        :returns: response string
         :rtype: str
         """
         self.writeCommand(command)
