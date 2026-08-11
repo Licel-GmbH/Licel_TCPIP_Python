@@ -60,6 +60,11 @@ def main():
     ethernetController.openConnection()
 
     print(waverider.getCAP())
+    print("Milliseconds since start: ", waverider.getMSEC(), "ms")
+    waverider.initTemperatureSensor()
+    boardTempPos1, boardTempPos2, SiliconTemp = waverider.getTemperature()
+    print("BoardTempPos1: {:.2f} C, BoardTempPos2: {:.2f} C, SiliconTemp: {:.2f} C"
+          .format(boardTempPos1, boardTempPos2, SiliconTemp))
     print(waverider.getID())
     print(waverider.getHWDescr())
 

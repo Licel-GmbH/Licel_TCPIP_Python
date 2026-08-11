@@ -35,6 +35,10 @@ class Waverider(TCP_util.util):
                         "reqFFTsize"        :    25,
     }
 
+    #: map the board commands with their low level value.
+    BoardCommands = { "getTemperature" : 0,}
+
+
     #: list the allowed value for the fft size
     possibleFFTSIZE = [32, 64, 128, 256, 512, 1024]
 
@@ -107,6 +111,40 @@ class Waverider(TCP_util.util):
         bytesToRead = self.__getBytesToRead__()
         resp = self.commandSocket.recv(bytesToRead)
         return resp.decode("utf-8")
+
+    def _windV2SendBoardCommand(self, command: str, value: int,
+                                payloadSize: int) -> bytes:
+        '''
+        Low level function for sending and reading Board level commands  .
+
+        :param command: the command to be sent to the Hardware Board.
+        :type command: str, defined in the ``BoardCommands``.
+
+        :param value: value to be sent along with the command.
+        :type value: int
+
+        :param payloadSize: number of payload bytes the board answers with,
+                            the 8 bytes protocol header excluded.
+        :type payloadSize: int
+
+        :return: the raw payload, the leading 8 bytes protocol header
+                 is stripped away.
+        :rtype: bytes
+        '''
+        if command not in self.BoardCommands:
+            raise RuntimeError("command {command} is not supported."
+                               "please see <Board   Commands> to list support commands"
+                               .format(command = command))
+
+        # the board expects a 16 byte command: 8 byte header, the value
+        # and 4 byte zero padding.
+        cmd = struct.pack('>8B2I', 0, 0, 0, 0, 0, 5, 0, self.BoardCommands[command],
+                          value, 0)
+        self.commandSocket.send(cmd)
+        self.commandSocket.recv(8) # read out first 8 Byte from TCP protocol Header
+        payload = bytearray()
+        payload= self.commandSocket.recv(12)
+        return bytes(payload)
     
     def __swap_endian_32bit__(self, num: int) -> int:
         '''
@@ -174,6 +212,45 @@ class Waverider(TCP_util.util):
         :rtype: str
         '''
         return self._windV2Set("setShots",shots)
+
+    def getTemperature(self) -> tuple[float, float, float]:
+        '''
+        get the temperatures of the waverider board.
+
+        After removing the 8 bytes protocol header the board answers with
+        three 32 bit little endian floats:
+
+        | 4 bytes BoardTempPos1
+        | 4 bytes BoardTempPos2
+        | 4 bytes SiliconTemp
+
+        A sensor that is not available reads back as ``nan`` (0xFFFFFFFF).
+        You should call ``initTemperatureSensor()`` before calling this function
+        to get a valid reading.  
+        The maximum allowed Silicon temperature is 85 degree Celsius.
+        If the silicon temperature exceeds this value,
+        the waverider will shut down to avoid any irrversible hardware damage.
+
+        :return: BoardTempPos1, BoardTempPos2 and SiliconTemp in degree Celsius.
+        :rtype: tuple[float, float, float]
+        '''
+        resp = self._windV2SendBoardCommand("getTemperature", 0, 12)
+        boardTempPos1, boardTempPos2, SiliconTemp = struct.unpack('<3f', resp)
+        return boardTempPos1, boardTempPos2, SiliconTemp    
+
+    def initTemperatureSensor(self) -> str:
+        '''
+        initialize the temperature sensor. 
+
+        On a low level, this will prefetech the temperature sensor data 120 times.
+        This is necessary to get a valid temperature reading.
+
+        :return: response from the ethernet controller, should be: `GETTEMP executed`
+        :rtype: str
+        '''
+        for i in range(120):
+            self.getTemperature()
+        return "temperature sensor initialized"
     
     def getShotsSettings(self) -> str:
         '''

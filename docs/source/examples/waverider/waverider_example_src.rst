@@ -65,6 +65,13 @@ the following are wrapper for low level interaction with the hardware.
 .. code-block:: python 
 
     print(waverider.getCAP())
+    print("Milliseconds since start: ", waverider.getMSEC(), "ms")
+
+    waverider.initTemperatureSensor()
+    boardTempPos1, boardTempPos2, SiliconTemp = waverider.getTemperature()
+    print("BoardTempPos1: {:.2f} C, BoardTempPos2: {:.2f} C, SiliconTemp: {:.2f} C"
+          .format(boardTempPos1, boardTempPos2, SiliconTemp))
+
     print(waverider.getID())
     print(waverider.getHWDescr())
 
@@ -75,10 +82,26 @@ the following are wrapper for low level interaction with the hardware.
     print(waverider.getFFTsize())
 
 
-* **waverider.getCAP()** : get the hardware capabilities.  
-* **waverider.getID()**  : get the firmware version 
-* **waverider.getHWDescr()**: get the hardware revision. 
-* **waverider.setShots(shots)**: Set the number of shots we want to acquire. 
+* **waverider.getCAP()** : get the hardware capabilities.
+* **waverider.getMSEC()** : get the waverider time in milliseconds since start.
+* **waverider.initTemperatureSensor()** : initialize the temperature sensor.
+    on a low level this prefetches the temperature sensor data 120 times, which is
+    necessary before the board returns a valid reading. It has to be called once
+    before the first call to **waverider.getTemperature()**.
+
+* **waverider.getTemperature()** : get the temperatures of the waverider board.
+    returns the three values **BoardTempPos1**, **BoardTempPos2** and **SiliconTemp**
+    as floats in degree Celsius. A sensor that is not available reads back as ``nan``.
+
+    .. warning::
+
+        The maximum allowed silicon temperature is 85 degree Celsius. If the silicon
+        temperature exceeds this value, the waverider will shut down to avoid
+        irreversible hardware damage.
+
+* **waverider.getID()**  : get the firmware version
+* **waverider.getHWDescr()**: get the hardware revision.
+* **waverider.setShots(shots)**: Set the number of shots we want to acquire.
 * **waverider.getShotsSettings()** : get the number of shots setting. 
 * **waverider.setFFTsize(FFT_Size)** : set the number of ADC samples that goes into computing a single fft
 * **waverider.getFFTsize()** : get the number of ADC samples that goes into computing a single fft
