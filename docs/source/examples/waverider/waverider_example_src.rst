@@ -72,6 +72,12 @@ the following are wrapper for low level interaction with the hardware.
     print("BoardTempPos1: {:.2f} C, BoardTempPos2: {:.2f} C, SiliconTemp: {:.2f} C"
           .format(boardTempPos1, boardTempPos2, SiliconTemp))
 
+    waverider.init_power_monitor()
+    vccCurrent, vccVoltage, clockCurrent, clockVoltage = waverider.getPowerSupplies()
+    print("VCC main supply: {:.3f} V, {:.3f} A".format(vccVoltage, vccCurrent))
+    print("Clocking subsystem supply: {:.3f} V, {:.3f} A"
+          .format(clockVoltage, clockCurrent))
+
     print(waverider.getID())
     print(waverider.getHWDescr())
 
@@ -98,6 +104,23 @@ the following are wrapper for low level interaction with the hardware.
         The maximum allowed silicon temperature is 85 degree Celsius. If the silicon
         temperature exceeds this value, the waverider will shut down to avoid
         irreversible hardware damage.
+
+* **waverider.init_power_monitor()** : initialize the power monitors.
+    on a low level this prefetches the supplies 10 times. The power monitors are
+    configured when the first command reaches them, and they average 4 conversions
+    of 8.244 ms each, so the first readings can still be the reset value of the
+    sensor. It has to be called once before the first call to
+    **waverider.getPowerSupplies()**.
+
+* **waverider.getPowerSupplies()** : get current and voltage of both supply rails
+    of the waverider board. The board watches its supplies with two power monitors,
+    one on the VCC main supply and one on the supply of the clocking subsystem.
+    returns the four values **vccCurrent**, **vccVoltage**, **clockCurrent** and
+    **clockVoltage** as floats, the currents in ampere and the voltages in volt.
+    A rail whose sensor could not be read returns ``nan``.
+
+    The power drawn by a rail is the product of its current and its voltage,
+    for example ``vccVoltage * vccCurrent`` for the VCC main supply.
 
 * **waverider.getID()**  : get the firmware version
 * **waverider.getHWDescr()**: get the hardware revision.

@@ -3,7 +3,7 @@ import struct
 import numpy as np
 
 
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from Licel import licel_tcpip
@@ -35,9 +35,23 @@ class Waverider(TCP_util.util):
                         "reqFFTsize"        :    25,
     }
 
-    #: map the board commands with their low level value.
-    BoardCommands = { "getTemperature" : 0,}
+    #: map the sensors of the hardware board
+    Sensors = { "temperatureSensor" : 5,
+                "powerMonitor"      : 6,
+    }
 
+    #: map the board commands with their low level value.
+    BoardCommands = { "temperatureSensor" : { "getTemperature" : 0,
+                                            },
+                      "powerMonitor"      : { "getSupplies"    : 0,
+                                            },
+    }
+
+    #: the board answers -1.0 when the i2c access to a sensor fails.
+    I2C_ERROR = -1.0
+
+    #: 10 mOhm shunt, a shunt voltage of 0,001 V would mean 1 A.
+    SHUNT_TO_AMPS = 100.0
 
     #: list the allowed value for the fft size
     possibleFFTSIZE = [32, 64, 128, 256, 512, 1024]
@@ -112,40 +126,64 @@ class Waverider(TCP_util.util):
         resp = self.commandSocket.recv(bytesToRead)
         return resp.decode("utf-8")
 
-    def _windV2SendBoardCommand(self, command: str, value: int,
-                                payloadSize: int) -> bytes:
+    def _windV2SendBoardCommand(self, sensor: str, command: str,
+                                payloadSize: int,
+                                value: Optional[int] = None) -> bytes:
         '''
         Low level function for sending and reading Board level commands  .
 
+        The board reads an 8 byte header and then exactly as many argument
+        bytes as the command declares, so the length of the frame has to
+        match the command:
+
+        | without argument: 8 byte header and 8 byte zero padding. the board
+          reads the padding as a command for driver 0 and ignores it, the
+          byte stream stays aligned.
+        | with argument: 8 byte header and the 4 byte argument, no padding.
+          padding would leave 4 bytes in the stream that the board would
+          read as the header of the next command.
+
+        :param sensor: the sensor to be addressed.
+        :type sensor: str, defined in the ``Sensors``.
+
         :param command: the command to be sent to the Hardware Board.
         :type command: str, defined in the ``BoardCommands``.
-
-        :param value: value to be sent along with the command.
-        :type value: int
 
         :param payloadSize: number of payload bytes the board answers with,
                             the 8 bytes protocol header excluded.
         :type payloadSize: int
 
+        :param value: value to be sent along with the command.
+                      ``None`` for a command that takes no argument.
+        :type value: Optional[int]
+
         :return: the raw payload, the leading 8 bytes protocol header
                  is stripped away.
         :rtype: bytes
         '''
-        if command not in self.BoardCommands:
-            raise RuntimeError("command {command} is not supported."
-                               "please see <Board   Commands> to list support commands"
-                               .format(command = command))
+        if sensor not in self.Sensors:
+            raise RuntimeError("sensor {sensor} is not supported."
+                               "please see <Sensors> to list supported sensors"
+                               .format(sensor = sensor))
 
-        # the board expects a 16 byte command: 8 byte header, the value
-        # and 4 byte zero padding.
-        cmd = struct.pack('>8B2I', 0, 0, 0, 0, 0, 5, 0, self.BoardCommands[command],
-                          value, 0)
+        if command not in self.BoardCommands[sensor]:
+            raise RuntimeError("command {command} is not supported by "
+                               "{sensor}. please see <BoardCommands> to "
+                               "list support commands"
+                               .format(command = command, sensor = sensor))
+
+        driver = self.Sensors[sensor]
+        opcode = self.BoardCommands[sensor][command]
+
+        if value is None:
+            cmd = struct.pack('>8B2I', 0, 0, 0, 0, 0, driver, 0, opcode, 0, 0)
+        else:
+            cmd = struct.pack('>8BI', 0, 0, 0, 0, 0, driver, 0, opcode, value)
+
         self.commandSocket.send(cmd)
-        self.commandSocket.recv(8) # read out first 8 Byte from TCP protocol Header
-        payload = bytearray()
-        payload= self.commandSocket.recv(12)
-        return bytes(payload)
-    
+        self.__recvExactly__(8) # read out first 8 Byte from protocol Header
+        return self.__recvExactly__(payloadSize)
+
     def __swap_endian_32bit__(self, num: int) -> int:
         '''
         helper function that return the given number as little endian.
@@ -157,6 +195,31 @@ class Waverider(TCP_util.util):
         :rtype: int 
         '''
         return int.from_bytes(num.to_bytes(4, byteorder='big'), byteorder='little')
+
+    def __recvExactly__(self, byteCount: int) -> bytes:
+        '''
+        helper function that reads exactly byteCount bytes from the command
+        socket. a single recv() may return less than what was asked for.
+
+        :param byteCount: number of bytes to read.
+        :type byteCount: int
+
+        :raises RuntimeError: if the controller closes the connection before
+                              all the requested bytes arrived.
+
+        :return: the requested number of bytes.
+        :rtype: bytes
+        '''
+        buffer = bytearray()
+        while len(buffer) < byteCount:
+            packet = self.commandSocket.recv(byteCount - len(buffer))
+            if not packet:
+                raise RuntimeError("connection closed by the waverider after "
+                                   "{received} of {expected} bytes"
+                                   .format(received = len(buffer),
+                                           expected = byteCount))
+            buffer.extend(packet)
+        return bytes(buffer)
 
     def __getBytesToRead__(self) -> int:
         '''
@@ -234,9 +297,10 @@ class Waverider(TCP_util.util):
         :return: BoardTempPos1, BoardTempPos2 and SiliconTemp in degree Celsius.
         :rtype: tuple[float, float, float]
         '''
-        resp = self._windV2SendBoardCommand("getTemperature", 0, 12)
+        resp = self._windV2SendBoardCommand("temperatureSensor",
+                                            "getTemperature", 12)
         boardTempPos1, boardTempPos2, SiliconTemp = struct.unpack('<3f', resp)
-        return boardTempPos1, boardTempPos2, SiliconTemp    
+        return boardTempPos1, boardTempPos2, SiliconTemp
 
     def initTemperatureSensor(self) -> str:
         '''
@@ -251,7 +315,61 @@ class Waverider(TCP_util.util):
         for i in range(120):
             self.getTemperature()
         return "temperature sensor initialized"
-    
+
+    def getPowerSupplies(self) -> tuple[float, float, float, float]:
+        '''
+        get current and voltage of both supply rails of the waverider board.
+
+        | 4 bytes VCC main current
+        | 4 bytes VCC main voltage
+        | 4 bytes clocking subsystem current
+        | 4 bytes clocking subsystem voltage
+
+        A rail whose i2c access failed reads back as ``nan``.
+
+        The power monitors are configured when the first command reaches
+        them, and they average 4 conversions of 8.244 ms each.  The very
+        first reading after power up can therefore still be the reset value
+        of the sensor, discard it if the reading has to be exact.
+
+        :return: VCC main current in ampere, VCC main voltage in volt,
+                 clocking subsystem current in ampere and clocking
+                 subsystem voltage in volt.
+        :rtype: tuple[float, float, float, float]
+        '''
+        resp = self._windV2SendBoardCommand("powerMonitor", "getSupplies", 16)
+        vccCurrent, vccVoltage, clockCurrent, clockVoltage = \
+            struct.unpack('<4f', resp)
+
+        # the board multiplies the shunt voltage by 100 before sending it,
+        # so a failed i2c access arrives as -100.0 in the two currents and
+        # as -1.0 in the two voltages.
+        nan = float('nan')
+        currentError = self.I2C_ERROR * self.SHUNT_TO_AMPS
+        if vccCurrent == currentError or vccVoltage == self.I2C_ERROR:
+            vccCurrent, vccVoltage = nan, nan
+        if clockCurrent == currentError or clockVoltage == self.I2C_ERROR:
+            clockCurrent, clockVoltage = nan, nan
+
+        return vccCurrent, vccVoltage, clockCurrent, clockVoltage
+
+    def init_power_monitor(self) -> str:
+        '''
+        initialize the power monitors.
+
+        On a low level, this will prefetch the supplies 10 times.
+        The power monitors are configured when the first command reaches
+        them, and they average 4 conversions of 8.244 ms each.  The first
+        readings can therefore still be the reset value of the sensor, this
+        function discards them.
+
+        :return: confirmation that the power monitors are initialized.
+        :rtype: str
+        '''
+        for _ in range(10):
+            self.getPowerSupplies()
+        return "power monitor initialized"
+
     def getShotsSettings(self) -> str:
         '''
         get the shots that are to be acquired for one acquisition.

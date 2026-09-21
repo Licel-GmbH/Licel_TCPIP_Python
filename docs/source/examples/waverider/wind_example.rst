@@ -9,8 +9,9 @@ ted over Ethernet to a PC.
 
 The waverider python API currently supports **waverider with a single trigger input**.
 
-the waverider_example.py demonstrates how to use the Python TCP/IP API to: 
+the waverider_example.py demonstrates how to use the Python TCP/IP API to:
     * Configure the waverider paramters (fft size, shots, etc..)
+    * Read the board temperatures and the power consumption of the board
     * Acquire the Power spectra data
     * save the power spectra data to a netcdf file
 

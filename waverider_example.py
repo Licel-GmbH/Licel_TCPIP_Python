@@ -65,6 +65,13 @@ def main():
     boardTempPos1, boardTempPos2, SiliconTemp = waverider.getTemperature()
     print("BoardTempPos1: {:.2f} C, BoardTempPos2: {:.2f} C, SiliconTemp: {:.2f} C"
           .format(boardTempPos1, boardTempPos2, SiliconTemp))
+
+    waverider.init_power_monitor()
+    vccCurrent, vccVoltage, clockCurrent, clockVoltage = waverider.getPowerSupplies()
+    print("VCC main supply: {:.3f} V, {:.3f} A".format(vccVoltage, vccCurrent))
+    print("Clocking subsystem supply: {:.3f} V, {:.3f} A"
+          .format(clockVoltage, clockCurrent))
+
     print(waverider.getID())
     print(waverider.getHWDescr())
 
