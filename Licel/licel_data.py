@@ -605,7 +605,7 @@ class DataParser:
         """
         measurConf = Config.measurementInfo
         myDataSetsnum = 1
-        if timestamp :
+        if timestamp is not None:
             header =(' {:d} {:04d} {:07d} {:04d} {:02d} {:07d} {:04d} {:d}\n'
                  .format(shots, measurConf.repRateL0, shots, 
                          measurConf.repRateL1, Config.numDataSets,
@@ -613,7 +613,7 @@ class DataParser:
         else :
             header =(' {:d} {:04d} {:07d} {:04d} {:02d} {:07d} {:04d}\n'
                  .format(shots, measurConf.repRateL0, shots, 
-                         measurConf.repRateL1, 1,
+                         measurConf.repRateL1, Config.numDataSets,
                          shots, measurConf.repRateL2) ) 
         return header
 
@@ -762,12 +762,6 @@ class DataParser:
         # it holds the timestamp of the acquisition
         filename = self._generateFileName(Config.measurementInfo.cFirstLetter)
         
-        if (self._acquisWrittenToFile > ACQUISPERFILE -1):             
-            self._myFileDescriptor.close()
-            self._acquisWrittenToFile = 0
-            self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
-            self._myFileDescriptor = open(self._path, "ab")
-
         if (self._acquisWrittenToFile == 0) :
             self._path = os.path.join(Config.measurementInfo.szOutPath,filename)
             self._myFileDescriptor = open(self._path, "ab")
@@ -788,6 +782,11 @@ class DataParser:
             self._myFileDescriptor.write(b'\r\n')
 
         self._acquisWrittenToFile += 1
+        # close the file as soon as it is complete, so it can be read
+        # without waiting for the next acquisition.
+        if (self._acquisWrittenToFile >= ACQUISPERFILE):
+            self._myFileDescriptor.close()
+            self._acquisWrittenToFile = 0
 
     def _generateAcquisDatasetsHeaderline(self, Config:'licel_Config.Config',
                                           TRHardwareInfo: dict[int, dict[str, int | str | float]],
