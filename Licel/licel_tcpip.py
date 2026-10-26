@@ -51,8 +51,6 @@ class EthernetController(TCP_util.util):
     ip: str
     #: Port number for command socket
     port: int
-    #: Push buffer for data storage
-    pushBuffer: bytearray
   
     def __init__(self, ip: str, port: int) -> None:
         """Initialize the EthernetController.
@@ -323,7 +321,6 @@ class EthernetController(TCP_util.util):
                 self.openPushConnection()
                 self.Tr.listInstalledTr()   
                 self.Tr.configureHardware(ConfigInfo)  
-                self.pushBuffer = bytearray()
                 print("Reconnection Successful")
                 break
             except (socket.error, socket.timeout, RuntimeError, Exception,

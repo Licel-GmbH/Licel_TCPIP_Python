@@ -73,11 +73,12 @@ class TransientRecorder(TCP_util.util):
 
     Tr_number = " "
     __MaxTrNumber = 0
-    __TrDict: dict[str, str] = {}
+    __TrDict: dict[str, str]
 
     bigEndianTimeStamp = False
 
-    pushBuffer = bytearray()
+    #: Buffer receiving the raw MPUSH data, filled by ``recvPushData``
+    pushBuffer: bytearray
 
     #: holds the total number of raw datasets to be read, MSW LSW PC PHM   
     __rawDataSets__ : int = 0  
@@ -92,7 +93,7 @@ class TransientRecorder(TCP_util.util):
     #  dict{Tr_num : dict{'ADC Bits' : ' ', 'PC Bits' : ' ' , 'FIFOLength': ' ' ,
     #                     'binWidth' : ' ', 'ID' : ' ', 
     #                     'HWCAP' : ' ', 'binShift': ' ', 'raw': ' '}}
-    hardwareInfos:dict[int, dict[str, int | str | float]] = {}
+    hardwareInfos:dict[int, dict[str, int | str | float]]
 
     def __init__(self,
                  commandSocket: TCP_util.socket.socket,
@@ -106,6 +107,11 @@ class TransientRecorder(TCP_util.util):
         self.PushSocket     = pushSocket 
         self.sockFile       = socket_File
         self.killsock       = killSocket
+        # mutable state must be per instance, otherwise every TransientRecorder
+        # (e.g. the one created on reconnection) shares the same objects.
+        self.__TrDict = {}
+        self.pushBuffer = bytearray()
+        self.hardwareInfos = {}
     
     def getStatus(self) -> tuple[bool, bool, str,int]:
         ''' Return the shot number for each memory, there is one clearing cycle at the start.'''
@@ -889,6 +895,8 @@ class TransientRecorder(TCP_util.util):
         :returns: None
         """
         numDataSets = 0
+        self.__rawDataSets__ = 0
+        self.totalnumBins = 0
         for myTrConfig in Config.TrConfigs: 
             for key in myTrConfig.analogueEnabled : 
                 if myTrConfig.analogueEnabled[key] == True: 

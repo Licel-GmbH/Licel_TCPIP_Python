@@ -404,13 +404,13 @@ class DataParser:
                                                  dict[int, dict[str, int]],
                                                  dict[int, dict[str, int]]]:
         '''
-        parse the ``ethernetController.pushBuffer``,
-        transfer the binary push data from ``ethernetController.pushBuffer`` into the 
+        parse the ``ethernetController.Tr.pushBuffer``,
+        transfer the binary push data from ``ethernetController.Tr.pushBuffer`` into the 
         ``dataSet`` to be later stored in data files. 
         Binary push data will be transformed from raw binary data uint8 to preprocessed 
         raw data uint32.
         If the data is valid, meaning no byte were lost during the transmission, we remove
-        the raw binary, from ``ethernetController.pushBuffer``
+        the raw binary, from ``ethernetController.Tr.pushBuffer``
 
         :param ethernetController: holds pushBuffer and TRHardwareinfo as members.
         :type ethernetController: licel_tcpip.EthernetController 
@@ -482,12 +482,12 @@ class DataParser:
                     mem_extra = numpy.zeros((numberToRead))
                     if ((shots > 32764) and (ethernetController.Tr.hardwareInfos[TRnum]['ADC Bits'] == 16)):
                         tmp_analogue_shot_dict[memory] =(int.from_bytes(
-                                                        [ethernetController.pushBuffer[parserIndex],
-                                                        ethernetController.pushBuffer[parserIndex+1]],
+                                                        [ethernetController.Tr.pushBuffer[parserIndex],
+                                                        ethernetController.Tr.pushBuffer[parserIndex+1]],
                                                         byteorder='little',signed=False))
                         
                         parserIndex += MPUSH_SHOTNUM_OFFSET 
-                        rawPHM = ethernetController.pushBuffer[parserIndex :(numberToRead*2)+ parserIndex]
+                        rawPHM = ethernetController.Tr.pushBuffer[parserIndex :(numberToRead*2)+ parserIndex]
                         parserIndex += 2*numberToRead 
                         mem_extra = numpy.frombuffer(rawPHM,numpy.uint16)  
 
@@ -953,8 +953,8 @@ class DataParser:
         """
         if (self._firstLog == True):
             asciiFile  = open(asciiFile_path, "a")
-            bufferlength = "raw buffer length:" + str(len(ethernetController.pushBuffer)) + "\r\n"
-            byte_to_recive = "expected bytes to be  received:" + str(ethernetController.BufferSize) + "\r\n"
+            bufferlength = "raw buffer length:" + str(len(ethernetController.Tr.pushBuffer)) + "\r\n"
+            byte_to_recive = "expected bytes to be  received:" + str(ethernetController.Tr.BufferSize) + "\r\n"
             asciiFile.write(idn+ "\r\n")
             asciiFile.write("Acquisiton Start: "+str(startTime)+ "\r\n")
             asciiFile.write(str(Config.TrConfigs)+ "\r\n")
@@ -962,19 +962,19 @@ class DataParser:
             asciiFile.write(byte_to_recive)
             asciiFile.close()
             asciiFile  = open(asciiFile_path, "ab")
-            asciiFile.write(ethernetController.pushBuffer)
+            asciiFile.write(ethernetController.Tr.pushBuffer)
             asciiFile.write(b"\r\n")
             asciiFile.close()
             self._firstLog = False
         else : 
             asciiFile  = open(asciiFile_path, "a")
-            bufferlength = "raw buffer length:" + str(len(ethernetController.pushBuffer)) + "\r\n"
-            byte_to_recive = "expected bytes to be  received:" + str(ethernetController.BufferSize) + "\r\n"
+            bufferlength = "raw buffer length:" + str(len(ethernetController.Tr.pushBuffer)) + "\r\n"
+            byte_to_recive = "expected bytes to be  received:" + str(ethernetController.Tr.BufferSize) + "\r\n"
             asciiFile.write(bufferlength)
             asciiFile.write(byte_to_recive)
             asciiFile.close()
             asciiFile  = open(asciiFile_path, "ab")
-            asciiFile.write(ethernetController.pushBuffer)
+            asciiFile.write(ethernetController.Tr.pushBuffer)
             asciiFile.write(b"\r\n")
             asciiFile.close()
 

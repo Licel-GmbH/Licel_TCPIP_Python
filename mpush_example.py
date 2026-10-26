@@ -76,7 +76,7 @@ def singleAcquistionCycle(ethernetController: 'licel_tcpip.EthernetController',
 
     else :
         # if data is not valid clear buffer until next occurrence of xff xff 
-        dataParser.removeInvalidDataFromBuffer(ethernetController.pushBuffer)
+        dataParser.removeInvalidDataFromBuffer(ethernetController.Tr.pushBuffer)
 
 def main():
     
