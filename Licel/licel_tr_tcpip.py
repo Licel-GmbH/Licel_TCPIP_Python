@@ -888,6 +888,8 @@ class TransientRecorder(TCP_util.util):
         and the total number of bins we need to acquire. The number of shots and transient
         hardware information influences the number of raw data bytes we need to acquire. 
         this function update the value of ``exceptedByte`` and ``BufferSize`` in self.
+        ``__rawDataSets__`` and ``totalnumBins`` are reset first, so repeated calls
+        (e.g. MPUSH restart after reconnection) do not accumulate.
 
         :param shots: number of shots the user wishes to acquire
         :type shots : int

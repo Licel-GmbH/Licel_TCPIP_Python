@@ -21,7 +21,8 @@ class DataParser:
     #:already written into a the actual file
     _acquisWrittenToFile : int = 0
     #:internal value to keep the file path, where dataset is to be saved, into memory, 
-    #:``_path`` is updated by ``saveFile()`` if  ``_acquisWrittenToFile`` == ``ACQUISPERFILE``  
+    #:``_path`` is updated by ``savePushDataToLicelFileFormat()`` when a new file is opened,
+    #:i.e. when ``_acquisWrittenToFile`` == 0
     _path : str  = " "
 
     _myFileDescriptor = 0
@@ -382,7 +383,7 @@ class DataParser:
     def removeInvalidDataFromBuffer(self, pushBuffer: bytearray):
         '''
         remove raw data from buffer until next occurrence of xff xff. 
-        this is used to clear the ```pushBuffer`` if the data is invalid. 
+        this is used to clear the ``pushBuffer`` if the data is invalid. 
         In the example below we want to remove the first line containing invalid raw data\
         until the next occurrence of the xff xff delimiter marking the start of new data set:\r\n
         ``1- <xff xff> <timestamp> <shots> <INVALID raw data> \r\n``
@@ -756,7 +757,13 @@ class DataParser:
         :type pc_shot_dict: (dict{'A' : int, 'B': int, 'C': int, 'D': int})- 
 
         :param shots: number of acuqired shots.
-        :type shots
+        :type shots: int
+
+        :param ACQUISPERFILE: maximal number of acquisitions to write in a single file.
+            The file is closed as soon as ``ACQUISPERFILE`` acquisitions are written to it,
+            so it can be read without waiting for the next acquisition.
+            The next call opens a new file.
+        :type ACQUISPERFILE: int
         '''    
         # file name needs to be written for each acquisition,
         # it holds the timestamp of the acquisition
@@ -938,8 +945,8 @@ class DataParser:
         :param asciiFile_path: path of the file to be written 
         :type asciiFile_path: str
 
-        :param pushBuffer: pushBuffer 
-        :type pushBuffer: bytearray 
+        :param ethernetController: holds ``Tr.pushBuffer`` and ``Tr.BufferSize`` to be logged.
+        :type ethernetController: licel_tcpip.EthernetController
 
         :param idn: controller identification string 
         :type idn: str 

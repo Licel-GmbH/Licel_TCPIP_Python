@@ -49,7 +49,7 @@ the following are wrapper for low level interaction with the hardware.
     
 * **ethernetController**: is the class responsible for handling the communication with the hardware.
 
-* **dataParser**: class holding method for parsing ``ethernetController.pushBuffer``.
+* **dataParser**: class holding method for parsing ``ethernetController.Tr.pushBuffer``.
 
 * **ConfigInfo**: class holding method for reading and storing configuration from the ini file.
                   ini file must be passed as argument, in this example ``Acquis.ini``  
@@ -143,7 +143,7 @@ for more information about the supported configuration see :ref:`TRini-File`
             cycle_count = cycle_count - 1
             ethernetController.reconnection(ConfigInfo)
             print("*** Restarting MPUSH *** ")
-            print(ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo))
+            print(ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo))
         except KeyboardInterrupt: 
             print("User interrupted program by pressing Ctrl-C.")
             break
@@ -158,16 +158,17 @@ A connection error can always occur, so we handle this exception by trying to re
     this will be explained in more details in the chapter :ref:`Single Acq`
 
 * **ethernetController.reconnection(ConfigInfo)**: 
-    attempt to reconnect. if 5 attempts fail, will raise a ``RuntimeError``
+    attempt to reconnect. if ``MAX_RECONNECTION_ATTEMPTS`` (5) attempts fail, will raise an ``EthernetControllerError``
 
     Internally this will: 
+
     * send a ``KILL Socket`` command to the hardware.
-    * reopen command and push sockets.
+    * reopen command and push sockets and create a new ``ethernetController.Tr`` object.
     * update installed transient recorder list.
     * reconfigure the the hardware.
-    * Clear the internal ``pushBuffer``
+    * Clear the internal ``ethernetController.Tr.pushBuffer``
 
-* **ethernetController.MPushStartFromConfig(desiredShots, ConfigInfo)**: 
+* **ethernetController.Tr.MPushStartFromConfig(desiredShots, ConfigInfo)**: 
     Restart MPUSH see :ref:`Start Mpush`
 
 .. _Single Acq:
@@ -216,12 +217,12 @@ A single acquisition cycle consists of :
 
         else :
             # if data is not valid clear buffer until next occurrence of xff xff 
-            dataParser.removeInvalidDataFromBuffer(ethernetController.pushBuffer)
+            dataParser.removeInvalidDataFromBuffer(ethernetController.Tr.pushBuffer)
 
 * **ethernetController.Tr.recvPushData()**:
     Fills the internal ``ethernetController.Tr.pushBuffer`` with the received raw binary. 
     This function will wait until ``ethernetController.Tr.pushBuffer`` is completely filled.
-    Internally ``ethernetController.Tr.BufferSize`` determines ``ethernetController.Tr.pushBuffer``size.
+    Internally ``ethernetController.Tr.BufferSize`` determines ``ethernetController.Tr.pushBuffer`` size.
 
     This function could raise ``ConnectionError``.
 
@@ -231,11 +232,13 @@ A single acquisition cycle consists of :
     for more information see: 
     :py:meth:`Licel.licel_data.DataParser.parseDataFromBuffer`
 
-* **dataParser.savePushDataToFile(dataSets, ConfigInfo, startTime,stopTime, ethernetController.hardwareInfos,time_stamp, analogue_shots, pc_shots, desiredShots, ACQUISPERFILE )**
+* **dataParser.savePushDataToLicelFileFormat(dataSets, ConfigInfo, startTime,stopTime, ethernetController.Tr.hardwareInfos,time_stamp, analogue_shots, pc_shots, desiredShots, ACQUISPERFILE )**
     save file in the directory specified in the .ini File.
-    for more information see :py:meth:`Licel.licel_data.DataParser.savePushDataToFile`
+    The file is closed as soon as ``ACQUISPERFILE`` acquisitions are written to it,
+    the next acquisition is written to a new file.
+    for more information see :py:meth:`Licel.licel_data.DataParser.savePushDataToLicelFileFormat`
 
-* **dataParser.removeInvalidDataFromBuffer(pushBuffer)**
+* **dataParser.removeInvalidDataFromBuffer(ethernetController.Tr.pushBuffer)**
     in case the ``ethernetController.Tr.pushBuffer`` contains invalid data, for example data was lost during the 
     transmission, we will simply discard the invalid data from the ``ethernetController.Tr.pushBuffer``
 
