@@ -232,7 +232,11 @@ class TransientRecorder(TCP_util.util):
  
     def singleShot(self) -> str:
         '''
-        Start the currently selected transient recorder.
+        Clears the TR memory and causes the transient recorder to take a single shot
+        The command is ignored while push mode is active.
+
+        :raises RuntimeError: if the response does not contain ``executed``,
+            e.g. ``SINGLE ignored due to active PUSH mode``
         '''
         return  self._writeReadAndVerify("SINGLE", "executed")
 
