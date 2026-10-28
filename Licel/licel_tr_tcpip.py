@@ -52,7 +52,10 @@ TRHardwareInfo_default: dict[str, int | float] = {
                            'binWidth' : 7.5,'ID' :0, 'HWCAP' : 0, 'binShift': 3.0,
                            'raw':0}
 
-#Threshold Modes 
+# TRTYPE reports the bin width in m, 0.15 m correspond to 1 ns (c/2)
+METER_PER_NS = 0.15
+
+#Threshold Modes
 THRESHOLD_LOW = 0
 THRESHOLD_HIGH = 1
 
@@ -455,6 +458,56 @@ class TransientRecorder(TCP_util.util):
             raise ValueError ('setDiscriminatorLevel() discriminatorLevel must be in range 1 ... 63 \r\n passed argument is :'+ str(discriminatorLevel))
         command = "DISC " + str(discriminatorLevel)
         return self._writeReadAndVerify(command, "set to")
+
+    def setOverflowInformation(self, level: int, start_us: float, stop_us: float,
+                               timeout_ms: float, block_ms: float) -> str:
+        """
+        Configure the analog signal trigger (overflow detection) of the selected
+        transient recorder. The signal trigger is set to analog, rising slope,
+        and the start/stop/timeout/block timers are written.
+        The bin width used to convert the times into timer values is read from
+        the transient recorder with ``TRTYPE?``.
+
+        :param level: trigger level in LSB, 0 .. 65535
+        :type level: int
+
+        :param start_us: start of the detection window in us
+        :type start_us: float
+
+        :param stop_us: stop of the detection window in us
+        :type stop_us: float
+
+        :param timeout_ms: timeout in ms (resolution 255 * binWidth_ns)
+        :type timeout_ms: float
+
+        :param block_ms: block time in ms (resolution 10000 * binWidth_ns)
+        :type block_ms: float
+
+        :raises ValueError: if a parameter is out of range
+        :raises RuntimeError: if the controller does not acknowledge a command
+
+        :returns: controller responses
+        :rtype: str
+        """
+        if (level < 0 or level > 0xFFFF):
+            raise ValueError ('setOverflowInformation() level must be in range 0 ... 65535 \r\n passed argument is :' + str(level))
+        binWidth_ns = float(self.TRtype()["binWidth"]) / METER_PER_NS
+        registers = {
+            "start"   : (0xE000, int(start_us * 1000 / binWidth_ns)),
+            "stop"    : (0xE001, int(stop_us * 1000 / binWidth_ns)),
+            "timeout" : (0xE002, int(timeout_ms * 1000000 / (255 * binWidth_ns))),
+            "block"   : (0xE003, int(block_ms * 1000000 / (10000 * binWidth_ns))),
+        }
+        for name, (address, value) in registers.items():
+            if (value < 0 or value > 0xFFFF):
+                raise ValueError ('setOverflowInformation() ' + name + ' register value ' + str(value)
+                                  + ' out of range 0 ... 65535')
+
+        resp = self._writeReadAndVerify("SIGNALTRIGGER OFF ANALOG RISING " + str(level), "executed")
+        for address, value in registers.values():
+            cmd = "TR_SPI 0x{:04X}{:04X}".format(address, value)
+            resp += self._writeReadAndVerify(cmd, "executed")
+        return resp
 
        
     def waitForReady(self,delay: int) -> str:
