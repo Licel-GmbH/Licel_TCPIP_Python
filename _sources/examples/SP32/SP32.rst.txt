@@ -1,0 +1,30 @@
+==============================
+**SP32 Example**
+==============================
+
+This example shows how to control a Licel SP32, acquire shot traces,
+and save them to disk using the helper functions included in this repository.
+
+The example script is provided as ``SP32_example.py`` in the project root.
+
+
+.. code-block:: RST
+
+        python3 SP32_example.py --ip <ip> --port <port>  --acq <num acquis> --shots <num shots>
+
+        Argument List : 
+        --ip               ip address of the SP32 you wish to communicate with. 
+        --port             command socket port number, (default 2055)
+        --acq              desired number of acquisitions.
+        --shots            desired number of shots per acquisition
+ 
+							 
+.. toctree::
+    :maxdepth: 1
+
+    SP32_ini
+    SP32_src
+
+
+        
+
